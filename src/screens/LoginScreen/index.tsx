@@ -10,11 +10,17 @@ import {
   Platform,
   Alert,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { AuthStackParamList } from "../../navigation/AppNavigator";
 import { Mail, Lock, Eye, EyeOff, Heart } from "lucide-react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../api/firebase/config";
 
+type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
+
 export default function LoginScreen() {
+  const navigation = useNavigation<LoginScreenNavigationProp>();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [show, setShow] = useState(false);
@@ -32,6 +38,10 @@ export default function LoginScreen() {
     }
   }
 
+  const handleRegister = () => {
+    navigation.navigate('Register');
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -42,17 +52,14 @@ export default function LoginScreen() {
           <View style={styles.logoCircle}>
             <Heart size={32} color="#fff" />
           </View>
-          <Text style={styles.title}>DiaCheck Pro</Text>
+          <Text style={styles.title}>GlicoInfo</Text>
           <Text style={styles.subtitle}>
             Seu cuidado com diabetes na palma da mão
           </Text>
         </View>
 
         <View style={styles.formContainer}>
-          <Text style={styles.cardTitle}>Entrar</Text>
-          <Text style={styles.cardSub}>
-            Digite suas credenciais para acessar sua conta
-          </Text>
+          
 
           {/* Campo Email */}
           <View style={styles.fieldContainer}>
@@ -106,7 +113,7 @@ export default function LoginScreen() {
 
           <View style={styles.footerRow}>
             <Text style={styles.footerTxt}>Não tem uma conta? </Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={handleRegister}>
               <Text style={styles.footerLink}>Cadastre-se</Text>
             </TouchableOpacity>
           </View>
