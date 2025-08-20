@@ -17,7 +17,9 @@ const firebaseConfig = {
 // Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
 
-// Exporta os serviços que você vai usar
+// Inicializa o Auth (a persistência será configurada automaticamente no React Native)
 export const auth = getAuth(app);
+
+// Exporta os outros serviços
 export const db = getFirestore(app);
 export const storage = getStorage(app);
