@@ -6,10 +6,12 @@ import { auth } from "../api/firebase/config";
 
 // telas
 import LoginScreen from "../screens/LoginScreen";
+import RegisterScreen from "../screens/RegisterScreen";
 import HomeScreen from "../screens/HomeScreen";
 
 export type AuthStackParamList = {
   Login: undefined;
+  Register: undefined;
 };
 
 export type AppStackParamList = {
@@ -44,6 +46,7 @@ export default function AppNavigator() {
   ) : (
     <Auth.Navigator screenOptions={{ headerShown: false }}>
       <Auth.Screen name="Login" component={LoginScreen} />
+      <Auth.Screen name="Register" component={RegisterScreen} />
     </Auth.Navigator>
   );
 }
