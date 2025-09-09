@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Search, X, Check, Pill } from 'lucide-react-native';
-import { useMedications, Medication } from '../hooks/UseMedications';
+import { useMedications, Medication } from '../hooks/useMedications';
 
 interface MedicationSelectorProps {
   selectedMedications: string[];
