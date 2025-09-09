@@ -5,13 +5,12 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
-import { User, Mail, Lock, Eye, EyeOff, Heart } from "lucide-react-native";
+import { User, Mail, Lock, Eye, EyeOff, Heart, ArrowLeft, ArrowRight } from "lucide-react-native";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../../api/firebase/config";
@@ -19,8 +18,9 @@ import { hashCPF, maskCPF, maskCPFForSave, validateCPF, validateEmail, validateP
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../../navigation/AppNavigator";
-import MedicationSelector from "../../components/MedicationSelector";
+import MedicationSelector from "../../components/medicationSelector";
 import ComplicationSelector from "../../components/complicationSelector";
+import Dropdown from "../../components/Dropdown";
 
 type RegisterScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
 
@@ -34,8 +34,8 @@ interface RegisterData {
   medications: string[];
   isFollowedUp: boolean | null;
   hasChronicComplications: boolean | null;
-  chronicComplications: string[]; // Mudança aqui: array em vez de string
-  chronicComplicationsDescription: string; // Mantém para descrição adicional
+  chronicComplications: string[];
+  chronicComplicationsDescription: string;
   isHypertensive: boolean | null;
   weight: string;
   height: string;
@@ -45,6 +45,8 @@ interface RegisterData {
 
 export default function RegisterScreen() {
   const navigation = useNavigation<RegisterScreenNavigationProp>();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [loading, setLoading] = useState(false);
   
   const [formData, setFormData] = useState<RegisterData>({
     name: "",
@@ -56,7 +58,7 @@ export default function RegisterScreen() {
     medications: [],
     isFollowedUp: null,
     hasChronicComplications: null,
-    chronicComplications: [], // Inicializar como array vazio
+    chronicComplications: [],
     chronicComplicationsDescription: "",
     isHypertensive: null,
     weight: "",
@@ -67,7 +69,8 @@ export default function RegisterScreen() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+
+  const totalSteps = 5;
 
   const diabetesTypes = [
     { label: "Selecione o tipo", value: "" },
@@ -84,12 +87,6 @@ export default function RegisterScreen() {
     { label: "Outro", value: "outro" },
   ];
 
-  const booleanOptions = [
-    { label: "Selecione", value: null },
-    { label: "Sim", value: true },
-    { label: "Não", value: false },
-  ];
-
   const updateField = (field: keyof RegisterData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -100,86 +97,111 @@ export default function RegisterScreen() {
     updateField("cpf", masked);
   };
 
-  const validateForm = (): boolean => {
-    // Validar nome completo
-    if (!formData.name || formData.name.length < 20) {
-      Alert.alert("Erro", "Nome completo deve ter pelo menos 20 caracteres");
-      return false;
+  const validateCurrentStep = (): boolean => {
+    switch (currentStep) {
+      case 1: // Dados pessoais
+        if (!formData.name || formData.name.length < 20) {
+          Alert.alert("Erro", "Nome completo deve ter pelo menos 20 caracteres");
+          return false;
+        }
+        if (!validateEmail(formData.email)) {
+          Alert.alert("Erro", "Email inválido");
+          return false;
+        }
+        if (!validateCPF(formData.cpf.replace(/\D/g, ""))) {
+          Alert.alert("Erro", "CPF inválido");
+          return false;
+        }
+        if (!validatePassword(formData.password)) {
+          Alert.alert("Erro", "Senha deve ter pelo menos 8 caracteres, incluindo maiúscula, minúscula e número");
+          return false;
+        }
+        if (formData.password !== formData.confirmPassword) {
+          Alert.alert("Erro", "Senhas não coincidem");
+          return false;
+        }
+        break;
+
+      case 2: // Sobre você
+        if (!formData.gender) {
+          Alert.alert("Erro", "Selecione o gênero");
+          return false;
+        }
+        break;
+
+      case 3: // Sua saúde
+        if (!formData.diabetesType) {
+          Alert.alert("Erro", "Selecione o tipo de diabetes");
+          return false;
+        }
+        if (!formData.diabetesDuration) {
+          Alert.alert("Erro", "Informe há quanto tempo tem diabetes");
+          return false;
+        }
+        break;
+
+      case 4: // Medicamentos
+        // Medicamentos são opcionais
+        break;
+
+      case 5: // Histórico de saúde e dados físicos
+        if (formData.isFollowedUp === null) {
+          Alert.alert("Erro", "Informe se é acompanhado por médico");
+          return false;
+        }
+        if (formData.hasChronicComplications === null) {
+          Alert.alert("Erro", "Informe se possui complicações crônicas");
+          return false;
+        }
+        if (formData.isHypertensive === null) {
+          Alert.alert("Erro", "Informe se é hipertenso");
+          return false;
+        }
+        
+        const weight = parseFloat(formData.weight);
+        const height = parseFloat(formData.height);
+
+        if (!weight || weight < 20 || weight > 350) {
+          Alert.alert("Erro", "Peso deve estar entre 20 e 350 kg");
+          return false;
+        }
+
+        if (!height || height < 80 || height > 250) {
+          Alert.alert("Erro", "Altura deve estar entre 80 e 250 cm");
+          return false;
+        }
+
+        if (formData.hasChronicComplications && 
+            formData.chronicComplications.length === 0 && 
+            formData.chronicComplicationsDescription.length < 10) {
+          Alert.alert("Erro", "Selecione pelo menos uma complicação ou descreva com pelo menos 10 caracteres");
+          return false;
+        }
+        break;
     }
-
-    // Validar email
-    if (!validateEmail(formData.email)) {
-      Alert.alert("Erro", "Email inválido");
-      return false;
-    }
-
-    // Validar CPF
-    if (!validateCPF(formData.cpf.replace(/\D/g, ""))) {
-      Alert.alert("Erro", "CPF inválido");
-      return false;
-    }
-
-    // Validar senha
-    if (!validatePassword(formData.password)) {
-      Alert.alert("Erro", "Senha deve ter pelo menos 8 caracteres, incluindo maiúscula, minúscula e número");
-      return false;
-    }
-
-    // Confirmar senha
-    if (formData.password !== formData.confirmPassword) {
-      Alert.alert("Erro", "Senhas não coincidem");
-      return false;
-    }
-
-    // Validar campos obrigatórios
-    const requiredFields = [
-      { field: formData.gender, name: "Gênero" },
-      { field: formData.diabetesType, name: "Tipo de diabetes" },
-      { field: formData.diabetesDuration, name: "Duração da diabetes" },
-      { field: formData.isFollowedUp, name: "É acompanhado por médico" },
-      { field: formData.hasChronicComplications, name: "Possui complicações crônicas" },
-      { field: formData.isHypertensive, name: "É hipertenso" },
-    ];
-
-    for (const { field, name } of requiredFields) {
-      if (field === null || field === "") {
-        Alert.alert("Erro", `${name} é obrigatório`);
-        return false;
-      }
-    }
-
-    // Validar peso e altura
-    const weight = parseFloat(formData.weight);
-    const height = parseFloat(formData.height);
-
-    if (!weight || weight < 20 || weight > 350) {
-      Alert.alert("Erro", "Peso deve estar entre 20 e 350 kg");
-      return false;
-    }
-
-    if (!height || height < 80 || height > 250) {
-      Alert.alert("Erro", "Altura deve estar entre 80 e 250 cm");
-      return false;
-    }
-
-    // Validar descrição de complicações se necessário
-    if (formData.hasChronicComplications && 
-        formData.chronicComplications.length === 0 && 
-        formData.chronicComplicationsDescription.length < 10) {
-      Alert.alert("Erro", "Selecione pelo menos uma complicação ou descreva com pelo menos 10 caracteres");
-      return false;
-    }
-
     return true;
   };
 
-  const handleRegister = async () => {
-    if (!validateForm()) return;
+  const handleNext = () => {
+    if (validateCurrentStep()) {
+      if (currentStep < totalSteps) {
+        setCurrentStep(currentStep + 1);
+      } else {
+        handleRegister();
+      }
+    }
+  };
 
+  const handlePrevious = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleRegister = async () => {
     try {
       setLoading(true);
 
-      // Criar usuário no Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         formData.email,
@@ -187,16 +209,13 @@ export default function RegisterScreen() {
       );
 
       const user = userCredential.user;
-
-      // Limpar CPF para processamento
       const cleanCPF = formData.cpf.replace(/\D/g, "");
 
-      // Preparar dados para o Firestore
       const userData = {
         name: formData.name,
         email: formData.email,
         cpfHash: hashCPF(cleanCPF),
-        cpfMasked: maskCPFForSave(cleanCPF), // Usar a nova função de mascaramento
+        cpfMasked: maskCPFForSave(cleanCPF),
         gender: formData.gender,
         diabetesType: formData.diabetesType,
         diabetesDuration: formData.diabetesDuration,
@@ -215,7 +234,6 @@ export default function RegisterScreen() {
         createdAt: new Date(),
       };
 
-      // Salvar no Firestore
       await setDoc(doc(db, "users", user.uid), userData);
 
       Alert.alert("Sucesso", "Conta criada com sucesso!");
@@ -227,354 +245,425 @@ export default function RegisterScreen() {
     }
   };
 
-  const handleCancel = () => {
-    Alert.alert(
-      "Cancelar",
-      "Todas as alterações serão perdidas. Deseja realmente cancelar?",
-      [
-        { text: "Não", style: "cancel" },
-        { 
-          text: "Sim", 
-          onPress: () => {
-            navigation.goBack();
-          }
-        },
-      ]
-    );
-  };
+  const renderProgressBar = () => (
+    <View style={styles.progressContainer}>
+      <View style={styles.progressBar}>
+        <View 
+          style={[
+            styles.progressFill, 
+            { width: `${(currentStep / totalSteps) * 100}%` }
+          ]} 
+        />
+      </View>
+      <Text style={styles.stepText}>Etapa {currentStep} de {totalSteps}</Text>
+    </View>
+  );
 
-  const handleGoToLogin = () => {
-    navigation.navigate('Login');
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <View style={styles.stepContainer}>
+            <View style={styles.iconContainer}>
+              <User size={32} color="#2563eb" />
+            </View>
+            <Text style={styles.stepTitle}>Cadastre-se</Text>
+            <Text style={styles.stepSubtitle}>Vamos começar conhecendo você melhor para personalizar sua experiência</Text>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Nome Completo</Text>
+              <View style={styles.inputContainer}>
+                <User size={18} color="#94a3b8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Digite seu nome completo"
+                  placeholderTextColor="#94a3b8"
+                  value={formData.name}
+                  onChangeText={(text) => updateField("name", text)}
+                />
+              </View>
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>E-mail</Text>
+              <View style={styles.inputContainer}>
+                <Mail size={18} color="#94a3b8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="seu@email.com"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={formData.email}
+                  onChangeText={(text) => updateField("email", text)}
+                />
+              </View>
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Senha</Text>
+              <View style={styles.inputContainer}>
+                <Lock size={18} color="#94a3b8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Digite sua senha"
+                  placeholderTextColor="#94a3b8"
+                  secureTextEntry={!showPassword}
+                  value={formData.password}
+                  onChangeText={(text) => updateField("password", text)}
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                  {showPassword ? (
+                    <EyeOff size={18} color="#94a3b8" />
+                  ) : (
+                    <Eye size={18} color="#94a3b8" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Confirmar Senha</Text>
+              <View style={styles.inputContainer}>
+                <Lock size={18} color="#94a3b8" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Confirme sua senha"
+                  placeholderTextColor="#94a3b8"
+                  secureTextEntry={!showConfirmPassword}
+                  value={formData.confirmPassword}
+                  onChangeText={(text) => updateField("confirmPassword", text)}
+                />
+                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                  {showConfirmPassword ? (
+                    <EyeOff size={18} color="#94a3b8" />
+                  ) : (
+                    <Eye size={18} color="#94a3b8" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>CPF</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="000.000.000-00"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                  value={formData.cpf}
+                  onChangeText={handleCPFChange}
+                  maxLength={14}
+                />
+              </View>
+            </View>
+          </View>
+        );
+
+      case 2:
+        return (
+          <View style={styles.stepContainer}>
+            <View style={styles.iconContainer}>
+              <User size={32} color="#2563eb" />
+            </View>
+            <Text style={styles.stepTitle}>Sobre você</Text>
+            <Text style={styles.stepSubtitle}>Vamos começar conhecendo você melhor para personalizar sua experiência</Text>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Gênero</Text>
+              <Dropdown
+                options={genderOptions}
+                selectedValue={formData.gender}
+                onValueChange={(value) => updateField("gender", value)}
+                placeholder="Selecione seu gênero"
+              />
+            </View>
+          </View>
+        );
+
+      case 3:
+        return (
+          <View style={styles.stepContainer}>
+            <View style={styles.iconContainer}>
+              <Heart size={32} color="#2563eb" />
+            </View>
+            <Text style={styles.stepTitle}>Sua saúde</Text>
+            <Text style={styles.stepSubtitle}>Conte-nos sobre seu histórico de diabetes</Text>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Tipo de diabetes</Text>
+              <Dropdown
+                options={diabetesTypes}
+                selectedValue={formData.diabetesType}
+                onValueChange={(value) => updateField("diabetesType", value)}
+                placeholder="Selecione o tipo de diabetes"
+              />
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Há quanto tempo tem diabetes?</Text>
+              <View style={styles.inputContainer}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 5"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                  value={formData.diabetesDuration}
+                  onChangeText={(text) => updateField("diabetesDuration", text)}
+                />
+                <Text style={styles.inputSuffix}>Anos</Text>
+              </View>
+            </View>
+          </View>
+        );
+
+      case 4:
+        return (
+          <View style={styles.stepContainer}>
+            <View style={styles.iconContainer}>
+              <Heart size={32} color="#2563eb" />
+            </View>
+            <Text style={styles.stepTitle}>Seus medicamentos</Text>
+            <Text style={styles.stepSubtitle}>Selecione os medicamentos que você usa frequentemente</Text>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Tipo de medicamentos</Text>
+              <MedicationSelector
+                selectedMedications={formData.medications}
+                onMedicationsChange={(medications) => updateField("medications", medications)}
+                placeholder="Selecione os medicamentos utilizados"
+              />
+            </View>
+          </View>
+        );
+
+      case 5:
+        return (
+          <ScrollView 
+            style={styles.scrollableStep}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollableStepContent}
+          >
+            <View style={styles.stepHeaderContainer}>
+              <View style={styles.iconContainer}>
+                <User size={32} color="#2563eb" />
+              </View>
+              <Text style={styles.stepTitle}>Dados físicos</Text>
+              <Text style={styles.stepSubtitle}>Informações para calcular seu IMC</Text>
+            </View>
+
+            <View style={styles.rowContainer}>
+              <View style={[styles.fieldContainer, { flex: 1, marginRight: 8 }]}>
+                <Text style={styles.fieldLabel}>Peso (kg)</Text>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: 70"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="numeric"
+                    value={formData.weight}
+                    onChangeText={(text) => updateField("weight", text)}
+                  />
+                </View>
+              </View>
+              <View style={[styles.fieldContainer, { flex: 1, marginLeft: 8 }]}>
+                <Text style={styles.fieldLabel}>Altura (cm)</Text>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Ex: 175"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="numeric"
+                    value={formData.height}
+                    onChangeText={(text) => updateField("height", text)}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.sectionDivider}>
+              <Text style={styles.sectionTitle}>Histórico de Saúde</Text>
+              <Text style={styles.sectionSubtitle}>Selecione suas condições de saúde</Text>
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>É Acompanhado?</Text>
+              <View style={styles.buttonGroup}>
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    formData.isFollowedUp === true && styles.optionButtonSelected
+                  ]}
+                  onPress={() => updateField("isFollowedUp", true)}
+                >
+                  <Text style={[
+                    styles.optionButtonText,
+                    formData.isFollowedUp === true && styles.optionButtonTextSelected
+                  ]}>Sim</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    formData.isFollowedUp === false && styles.optionButtonSelected
+                  ]}
+                  onPress={() => updateField("isFollowedUp", false)}
+                >
+                  <Text style={[
+                    styles.optionButtonText,
+                    formData.isFollowedUp === false && styles.optionButtonTextSelected
+                  ]}>Não</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Possui Complicações Crônicas?</Text>
+              <View style={styles.buttonGroup}>
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    formData.hasChronicComplications === true && styles.optionButtonSelected
+                  ]}
+                  onPress={() => updateField("hasChronicComplications", true)}
+                >
+                  <Text style={[
+                    styles.optionButtonText,
+                    formData.hasChronicComplications === true && styles.optionButtonTextSelected
+                  ]}>Sim</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    formData.hasChronicComplications === false && styles.optionButtonSelected
+                  ]}
+                  onPress={() => updateField("hasChronicComplications", false)}
+                >
+                  <Text style={[
+                    styles.optionButtonText,
+                    formData.hasChronicComplications === false && styles.optionButtonTextSelected
+                  ]}>Não</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {formData.hasChronicComplications && (
+              <>
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.fieldLabel}>Selecione as complicações</Text>
+                  <ComplicationSelector
+                    selectedComplications={formData.chronicComplications}
+                    onComplicationsChange={(complications) => updateField("chronicComplications", complications)}
+                    placeholder="Selecione suas complicações crônicas"
+                  />
+                </View>
+
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.fieldLabel}>Descrição das complicações</Text>
+                  <View style={styles.inputContainer}>
+                    <TextInput
+                      style={[styles.input, styles.textArea]}
+                      placeholder="Ex: Retinopatia, neuropatia, rinç..."
+                      placeholderTextColor="#94a3b8"
+                      value={formData.chronicComplicationsDescription}
+                      onChangeText={(text) => updateField("chronicComplicationsDescription", text)}
+                      multiline
+                      numberOfLines={3}
+                    />
+                  </View>
+                </View>
+              </>
+            )}
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>É Hipertenso?</Text>
+              <View style={styles.buttonGroup}>
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    formData.isHypertensive === true && styles.optionButtonSelected
+                  ]}
+                  onPress={() => updateField("isHypertensive", true)}
+                >
+                  <Text style={[
+                    styles.optionButtonText,
+                    formData.isHypertensive === true && styles.optionButtonTextSelected
+                  ]}>Sim</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.optionButton,
+                    formData.isHypertensive === false && styles.optionButtonSelected
+                  ]}
+                  onPress={() => updateField("isHypertensive", false)}
+                >
+                  <Text style={[
+                    styles.optionButtonText,
+                    formData.isHypertensive === false && styles.optionButtonTextSelected
+                  ]}>Não</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Espaço extra no final para garantir que o último campo não fique colado no botão */}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        );
+
+      default:
+        return null;
+    }
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Header com botão voltar */}
+      {currentStep > 1 && (
         <View style={styles.header}>
-          <View style={styles.logoCircle}>
-            <Heart size={32} color="#fff" />
-          </View>
-          <Text style={styles.title}>DiaCheck Pro</Text>
-          <Text style={styles.subtitle}>
-            Crie sua conta e comece a cuidar da sua saúde
-          </Text>
+          <TouchableOpacity onPress={handlePrevious} style={styles.backButton}>
+            <ArrowLeft size={24} color="#2563eb" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Progress Bar */}
+      {renderProgressBar()}
+
+      {/* Conteúdo da etapa */}
+      <View style={styles.content}>
+        <View style={styles.scrollContainer}>
+          {renderStepContent()}
         </View>
 
-        <View style={styles.formContainer}>
-          <Text style={styles.cardTitle}>Criar Conta</Text>
-          <Text style={styles.cardSub}>
-            Preencha seus dados para começar
-          </Text>
-
-          {/* Nome Completo */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Nome completo</Text>
-            <View style={styles.inputWrap}>
-              <User size={18} style={styles.leftIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Seu nome completo"
-                placeholderTextColor="#94a3b8"
-                value={formData.name}
-                onChangeText={(text) => updateField("name", text)}
-                maxLength={120}
-              />
-            </View>
-          </View>
-
-          {/* E-mail */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>E-mail</Text>
-            <View style={styles.inputWrap}>
-              <Mail size={18} style={styles.leftIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="seu@email.com"
-                placeholderTextColor="#94a3b8"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={formData.email}
-                onChangeText={(text) => updateField("email", text)}
-                maxLength={120}
-              />
-            </View>
-          </View>
-
-          {/* CPF */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>CPF</Text>
-            <View style={styles.inputWrap}>
-              <TextInput
-                style={styles.input}
-                placeholder="000.000.000-00"
-                placeholderTextColor="#94a3b8"
-                keyboardType="numeric"
-                value={formData.cpf}
-                onChangeText={handleCPFChange}
-                maxLength={14}
-              />
-            </View>
-          </View>
-
-          {/* Gênero */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Gênero</Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={formData.gender}
-                onValueChange={(value) => updateField("gender", value)}
-                style={styles.picker}
-              >
-                {genderOptions.map((option) => (
-                  <Picker.Item
-                    key={option.value}
-                    label={option.label}
-                    value={option.value}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {/* Tipo de diabetes */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Tipo de diabetes</Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={formData.diabetesType}
-                onValueChange={(value) => updateField("diabetesType", value)}
-                style={styles.picker}
-              >
-                {diabetesTypes.map((option) => (
-                  <Picker.Item
-                    key={option.value}
-                    label={option.label}
-                    value={option.value}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {/* Duração da diabetes */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Há quanto tempo tem diabetes? (anos)</Text>
-            <View style={styles.inputWrap}>
-              <TextInput
-                style={styles.input}
-                placeholder="Ex: 5"
-                placeholderTextColor="#94a3b8"
-                value={formData.diabetesDuration}
-                onChangeText={(text) => updateField("diabetesDuration", text)}
-              />
-            </View>
-          </View>
-
-          {/* Medicamentos */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Medicamentos frequentemente utilizados</Text>
-            <MedicationSelector
-              selectedMedications={formData.medications}
-              onMedicationsChange={(medications) => updateField("medications", medications)}
-              placeholder="Selecione os medicamentos utilizados"
-            />
-          </View>
-
-          {/* É acompanhado por médico? */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>É acompanhado por médico?</Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={formData.isFollowedUp}
-                onValueChange={(value) => updateField("isFollowedUp", value)}
-                style={styles.picker}
-              >
-                {booleanOptions.map((option, index) => (
-                  <Picker.Item
-                    key={index}
-                    label={option.label}
-                    value={option.value}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {/* Possui complicações crônicas? */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Possui complicações crônicas?</Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={formData.hasChronicComplications}
-                onValueChange={(value) => updateField("hasChronicComplications", value)}
-                style={styles.picker}
-              >
-                {booleanOptions.map((option, index) => (
-                  <Picker.Item
-                    key={index}
-                    label={option.label}
-                    value={option.value}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {/* Seleção de complicações (condicional) */}
-          {formData.hasChronicComplications && (
-            <>
-              <View style={styles.fieldContainer}>
-                <Text style={styles.fieldLabel}>Selecione as complicações</Text>
-                <ComplicationSelector
-                  selectedComplications={formData.chronicComplications}
-                  onComplicationsChange={(complications) => updateField("chronicComplications", complications)}
-                  placeholder="Selecione suas complicações crônicas"
-                />
-              </View>
-
-              {/* Descrição adicional das complicações */}
-              <View style={styles.fieldContainer}>
-                <Text style={styles.fieldLabel}>
-                  Descrição adicional 
-                  <Text style={styles.optional}> (opcional)</Text>
-                </Text>
-                <View style={styles.inputWrap}>
-                  <TextInput
-                    style={[styles.input, styles.textArea]}
-                    placeholder="Informações adicionais sobre suas complicações..."
-                    placeholderTextColor="#94a3b8"
-                    value={formData.chronicComplicationsDescription}
-                    onChangeText={(text) => updateField("chronicComplicationsDescription", text)}
-                    multiline
-                    numberOfLines={3}
-                  />
-                </View>
-              </View>
-            </>
-          )}
-
-          {/* É hipertenso? */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>É hipertenso?</Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={formData.isHypertensive}
-                onValueChange={(value) => updateField("isHypertensive", value)}
-                style={styles.picker}
-              >
-                {booleanOptions.map((option, index) => (
-                  <Picker.Item
-                    key={index}
-                    label={option.label}
-                    value={option.value}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {/* Peso e Altura */}
-          <View style={styles.rowContainer}>
-            <View style={[styles.fieldContainer, { flex: 1, marginRight: 8 }]}>
-              <Text style={styles.fieldLabel}>Peso (kg)</Text>
-              <View style={styles.inputWrap}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="70"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={formData.weight}
-                  onChangeText={(text) => updateField("weight", text)}
-                />
-              </View>
-            </View>
-            <View style={[styles.fieldContainer, { flex: 1, marginLeft: 8 }]}>
-              <Text style={styles.fieldLabel}>Altura (cm)</Text>
-              <View style={styles.inputWrap}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="170"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={formData.height}
-                  onChangeText={(text) => updateField("height", text)}
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Senha */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Senha</Text>
-            <View style={styles.inputWrap}>
-              <Lock size={18} style={styles.leftIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Criar senha"
-                placeholderTextColor="#94a3b8"
-                secureTextEntry={!showPassword}
-                value={formData.password}
-                onChangeText={(text) => updateField("password", text)}
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                {showPassword ? (
-                  <EyeOff size={18} color="#94a3b8" />
-                ) : (
-                  <Eye size={18} color="#94a3b8" />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Confirmar Senha */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Confirmar senha</Text>
-            <View style={styles.inputWrap}>
-              <Lock size={18} style={styles.leftIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Confirmar senha"
-                placeholderTextColor="#94a3b8"
-                secureTextEntry={!showConfirmPassword}
-                value={formData.confirmPassword}
-                onChangeText={(text) => updateField("confirmPassword", text)}
-              />
-              <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                {showConfirmPassword ? (
-                  <EyeOff size={18} color="#94a3b8" />
-                ) : (
-                  <Eye size={18} color="#94a3b8" />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Botões */}
+        {/* Botões de navegação */}
+        <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
-            onPress={handleRegister}
+            style={[styles.nextButton, loading && { opacity: 0.7 }]}
+            onPress={handleNext}
             disabled={loading}
           >
-            <Text style={styles.primaryText}>
-              {loading ? "Criando conta..." : "Criar conta"}
+            <Text style={styles.nextButtonText}>
+              {currentStep === totalSteps 
+                ? (loading ? "Cadastrando..." : "Cadastrar")
+                : "Próximo"
+              }
             </Text>
+            {currentStep < totalSteps && <ArrowRight size={20} color="#fff" style={{ marginLeft: 8 }} />}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-            <Text style={styles.cancelText}>Cancelar</Text>
-          </TouchableOpacity>
-
-          <View style={styles.footerRow}>
-            <Text style={styles.footerTxt}>Já tem uma conta? </Text>
-            <TouchableOpacity onPress={handleGoToLogin}>
-              <Text style={styles.footerLink}>Entrar</Text>
+          {currentStep === 1 && (
+            <TouchableOpacity 
+              style={styles.loginButton}
+              onPress={() => navigation.navigate('Login')}
+            >
+              <Text style={styles.loginButtonText}>Já tem uma conta? <Text style={styles.loginLink}>Fazer Login</Text></Text>
             </TouchableOpacity>
-          </View>
+          )}
         </View>
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -582,64 +671,125 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#f8f9fa",
   },
   header: {
-    alignItems: "center",
     paddingTop: 60,
-    paddingHorizontal: 24,
-    marginBottom: 32,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
   },
-  logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#3b82f6",
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
-    shadowColor: "#3b82f6",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#1e293b",
+  progressContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    alignItems: "center",
+  },
+  progressBar: {
+    width: "100%",
+    height: 6,
+    backgroundColor: "#e5e7eb",
+    borderRadius: 3,
     marginBottom: 8,
   },
-  subtitle: {
-    fontSize: 16,
-    color: "#64748b",
-    textAlign: "center",
-    lineHeight: 22,
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#2563eb",
+    borderRadius: 3,
   },
-  formContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+  stepText: {
+    fontSize: 14,
+    color: "#6b7280",
+    fontWeight: "500",
   },
-  cardTitle: {
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  scrollContainer: {
+    flex: 1,
+    paddingBottom: 20,
+  },
+  stepContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    minHeight: "100%",
+  },
+  // Novos estilos para a etapa 5
+  scrollableStep: {
+    flex: 1,
+  },
+  scrollableStepContent: {
+    paddingBottom: 20,
+  },
+  stepHeaderContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  sectionDivider: {
+    alignItems: "center",
+    marginVertical: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#eff6ff",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  stepTitle: {
     fontSize: 24,
-    fontWeight: "600",
-    color: "#1e293b",
-    textAlign: "center",
+    fontWeight: "700",
+    color: "#1f2937",
     marginBottom: 8,
+    textAlign: "center",
   },
-  cardSub: {
+  stepSubtitle: {
     fontSize: 16,
-    color: "#64748b",
+    color: "#6b7280",
     textAlign: "center",
     marginBottom: 32,
     lineHeight: 22,
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
+    marginBottom: 16,
   },
   fieldContainer: {
-    marginBottom: 20,
+    width: "100%",
+    marginBottom: 16,
   },
   rowContainer: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    width: "100%",
+    marginBottom: 10,
   },
   fieldLabel: {
     fontSize: 16,
@@ -647,100 +797,100 @@ const styles = StyleSheet.create({
     color: "#374151",
     marginBottom: 8,
   },
-  inputWrap: {
+  inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
+    backgroundColor: "#fff",
     borderRadius: 12,
     paddingHorizontal: 16,
-    minHeight: 52,
-    backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  pickerWrap: {
+    paddingVertical: 16,
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 12,
-    backgroundColor: "#fff",
+    borderColor: "#e5e7eb",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  leftIcon: {
+  inputIcon: {
     marginRight: 12,
-    color: "#6b7280",
   },
   input: {
     flex: 1,
     fontSize: 16,
     color: "#1f2937",
-    paddingVertical: 16,
+    padding: 0,
   },
   textArea: {
     minHeight: 80,
     textAlignVertical: "top",
   },
-  picker: {
-    height: 52,
-    color: "#1f2937",
+  inputSuffix: {
+    fontSize: 16,
+    color: "#6b7280",
+    marginLeft: 8,
   },
-  primaryBtn: {
-    height: 52,
+  buttonGroup: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  optionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    backgroundColor: "#fff",
+    alignItems: "center",
+  },
+  optionButtonSelected: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  optionButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#6b7280",
+  },
+  optionButtonTextSelected: {
+    color: "#fff",
+  },
+  buttonContainer: {
+    paddingVertical: 20,
+    paddingBottom: 30,
+    backgroundColor: "#f8f9fa",
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  nextButton: {
+    backgroundColor: "#2563eb",
     borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#3b82f6",
-    shadowColor: "#3b82f6",
+    marginBottom: 12,
+    shadowColor: "#2563eb",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
-    marginBottom: 16,
+    elevation: 4,
   },
-  primaryText: {
+  nextButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#fff",
   },
-  cancelBtn: {
-    height: 52,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
-    marginBottom: 24,
-  },
-  cancelText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#6b7280",
-  },
-  footerRow: {
-    flexDirection: "row",
-    justifyContent: "center",
+  loginButton: {
     alignItems: "center",
   },
-  footerTxt: {
-    fontSize: 16,
-    color: "#6b7280",
-  },
-  footerLink: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#3b82f6",
-  },
-  optional: {
+  loginButtonText: {
     fontSize: 14,
-    color: '#9ca3af',
-    fontStyle: 'italic',
+    color: "#6b7280",
+  },
+  loginLink: {
+    color: "#2563eb",
+    fontWeight: "500",
   },
 });
