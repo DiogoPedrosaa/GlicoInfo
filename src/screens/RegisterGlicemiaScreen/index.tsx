@@ -9,8 +9,10 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
+  Modal,
+  FlatList,
 } from "react-native";
-import { ArrowLeft, Home, FileText, Bell, User } from "lucide-react-native";
+import { ArrowLeft, Home, FileText, Bell, User, ChevronDown } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { collection, addDoc, getDocs, query } from "firebase/firestore";
 import { auth, db } from "../../api/firebase/config";
@@ -22,17 +24,44 @@ interface Complicacao {
   instructions: string;
 }
 
+interface SituacaoGlicemia {
+  id: string;
+  name: string;
+  description: string;
+}
+
 export default function RegisterGlicemiaScreen() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
+  const [showSituacaoModal, setShowSituacaoModal] = useState(false);
   
   const [formData, setFormData] = useState({
     valor: "",
+    situacao: "",
+    situacaoName: "",
     data: "",
     hora: "",
     descricao: "",
   });
+
+  const situacoesGlicemia: SituacaoGlicemia[] = [
+    { 
+      id: "jejum", 
+      name: "Em jejum", 
+      description: "Medição após pelo menos 8 horas sem comer" 
+    },
+    { 
+      id: "pos_prandial", 
+      name: "Pós-prandial", 
+      description: "Medição 1-2 horas após uma refeição" 
+    },
+    { 
+      id: "ao_acaso", 
+      name: "Ao acaso", 
+      description: "Medição em qualquer momento do dia" 
+    },
+  ];
 
   const handleGoBack = () => {
     navigation.goBack();
@@ -144,9 +173,23 @@ export default function RegisterGlicemiaScreen() {
     setFormData({ ...formData, hora: formatted });
   };
 
+  const handleSituacaoSelect = (situacao: SituacaoGlicemia) => {
+    setFormData({
+      ...formData,
+      situacao: situacao.id,
+      situacaoName: situacao.name,
+    });
+    setShowSituacaoModal(false);
+  };
+
   const validateForm = () => {
     if (!formData.valor.trim()) {
       Alert.alert("Erro", "Por favor, informe o valor da glicemia");
+      return false;
+    }
+
+    if (!formData.situacao.trim()) {
+      Alert.alert("Erro", "Por favor, selecione a situação da glicemia");
       return false;
     }
 
@@ -182,17 +225,46 @@ export default function RegisterGlicemiaScreen() {
     return true;
   };
 
-  const checkGlicemiaLevel = (valor: number) => {
-    if (valor < 70) {
+  const checkGlicemiaLevel = (valor: number, situacao: string) => {
+    let message = "";
+    let isAbnormal = false;
+
+    if (situacao === "jejum") {
+      if (valor < 70) {
+        message = `Seu nível de glicemia em jejum está baixo (${valor} mg/dL). Valores normais em jejum: 70-99 mg/dL. Isso pode indicar hipoglicemia.`;
+        isAbnormal = true;
+      } else if (valor >= 100 && valor <= 125) {
+        message = `Sua glicemia em jejum está alterada (${valor} mg/dL). Valores normais em jejum: 70-99 mg/dL. Valores de 100-125 mg/dL podem indicar pré-diabetes.`;
+        isAbnormal = true;
+      } else if (valor >= 126) {
+        message = `Sua glicemia em jejum está alta (${valor} mg/dL). Valores normais em jejum: 70-99 mg/dL. Valores ≥126 mg/dL podem indicar diabetes.`;
+        isAbnormal = true;
+      }
+    } else if (situacao === "pos_prandial") {
+      if (valor < 70) {
+        message = `Seu nível de glicemia pós-prandial está baixo (${valor} mg/dL). Isso pode indicar hipoglicemia.`;
+        isAbnormal = true;
+      } else if (valor >= 140 && valor <= 199) {
+        message = `Sua glicemia pós-prandial está alterada (${valor} mg/dL). Valores normais 2h após refeição: <140 mg/dL. Valores de 140-199 mg/dL podem indicar pré-diabetes.`;
+        isAbnormal = true;
+      } else if (valor >= 200) {
+        message = `Sua glicemia pós-prandial está alta (${valor} mg/dL). Valores normais 2h após refeição: <140 mg/dL. Valores ≥200 mg/dL podem indicar diabetes.`;
+        isAbnormal = true;
+      }
+    } else { // ao acaso
+      if (valor < 70) {
+        message = `Seu nível de glicemia está baixo (${valor} mg/dL). Isso pode indicar hipoglicemia.`;
+        isAbnormal = true;
+      } else if (valor >= 200) {
+        message = `Sua glicemia está alta (${valor} mg/dL). Valores ≥200 mg/dL em qualquer momento podem indicar diabetes.`;
+        isAbnormal = true;
+      }
+    }
+
+    if (isAbnormal) {
       Alert.alert(
-        "⚠️ Glicemia Baixa",
-        `Seu nível de glicemia está baixo (${valor} mg/dL). Isso pode indicar hipoglicemia. Considere consumir uma fonte de açúcar de ação rápida e monitore seus sintomas. Se persistir, procure ajuda médica.`,
-        [{ text: "Entendi", style: "default" }]
-      );
-    } else if (valor > 180) {
-      Alert.alert(
-        "⚠️ Glicemia Alta",
-        `Seu nível de glicemia está alto (${valor} mg/dL). Isso pode indicar hiperglicemia. Verifique se tomou sua medicação, mantenha-se hidratado e monitore seus sintomas. Se persistir, procure orientação médica.`,
+        "⚠️ Atenção - Glicemia Alterada",
+        `${message}\n\nRecomendamos que discuta estes resultados com seu médico para uma avaliação adequada.`,
         [{ text: "Entendi", style: "default" }]
       );
     }
@@ -255,6 +327,8 @@ export default function RegisterGlicemiaScreen() {
       const glicemiaData = {
         userId: auth.currentUser.uid,
         valor: valor,
+        situacao: formData.situacao,
+        situacaoName: formData.situacaoName,
         data: formData.data,
         hora: formData.hora,
         descricao: formData.descricao.trim(),
@@ -265,8 +339,8 @@ export default function RegisterGlicemiaScreen() {
       // Salvar no Firebase na coleção "glicemia"
       await addDoc(collection(db, "glicemia"), glicemiaData);
 
-      // Verificar nível de glicemia
-      checkGlicemiaLevel(valor);
+      // Verificar nível de glicemia com base na situação
+      checkGlicemiaLevel(valor, formData.situacao);
 
       // Verificar complicações na descrição
       await checkComplications(formData.descricao);
@@ -320,6 +394,18 @@ export default function RegisterGlicemiaScreen() {
     </TouchableOpacity>
   );
 
+  const renderSituacaoItem = ({ item }: { item: SituacaoGlicemia }) => (
+    <TouchableOpacity
+      style={styles.listItem}
+      onPress={() => handleSituacaoSelect(item)}
+    >
+      <View style={styles.situacaoItemContent}>
+        <Text style={styles.situacaoItemName}>{item.name}</Text>
+        <Text style={styles.situacaoItemDescription}>{item.description}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -356,6 +442,23 @@ export default function RegisterGlicemiaScreen() {
               <Text style={styles.unitText}>mg/dl</Text>
             </View>
           </View>
+        </View>
+
+        {/* Situação da Glicemia */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.fieldLabel}>Situação da glicemia</Text>
+          <TouchableOpacity
+            style={styles.selectButton}
+            onPress={() => setShowSituacaoModal(true)}
+          >
+            <Text style={[
+              styles.selectButtonText,
+              !formData.situacaoName && styles.selectButtonPlaceholder
+            ]}>
+              {formData.situacaoName || "Selecione a situação"}
+            </Text>
+            <ChevronDown size={20} color="#6b7280" />
+          </TouchableOpacity>
         </View>
 
         {/* Data e Hora */}
@@ -429,6 +532,33 @@ export default function RegisterGlicemiaScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
+      {/* Modal de Seleção de Situação */}
+      <Modal
+        visible={showSituacaoModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Situação da Glicemia</Text>
+            <TouchableOpacity 
+              onPress={() => setShowSituacaoModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <FlatList
+            data={situacoesGlicemia}
+            renderItem={renderSituacaoItem}
+            keyExtractor={(item) => item.id}
+            style={styles.modalList}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
+      </Modal>
+
       {/* Navegação Inferior */}
       <View style={styles.bottomNavigation}>
         <TabButton 
@@ -488,7 +618,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   spacer: {
-    height: 60, // Espaço para centralizar o formulário
+    height: 40,
   },
   rowContainer: {
     flexDirection: "row",
@@ -498,6 +628,7 @@ const styles = StyleSheet.create({
   },
   fieldContainer: {
     flex: 1,
+    marginBottom: 24,
   },
   fieldLabel: {
     fontSize: 16,
@@ -519,6 +650,30 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+  },
+  selectButton: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  selectButtonText: {
+    fontSize: 16,
+    color: "#1f2937",
+    flex: 1,
+  },
+  selectButtonPlaceholder: {
+    color: "#9ca3af",
   },
   unitContainer: {
     backgroundColor: "#f9fafb",
@@ -588,6 +743,54 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#fff",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  modalCloseButton: {
+    padding: 8,
+  },
+  modalCloseText: {
+    fontSize: 16,
+    color: "#2563eb",
+    fontWeight: "500",
+  },
+  modalList: {
+    flex: 1,
+  },
+  listItem: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  situacaoItemContent: {
+    flex: 1,
+  },
+  situacaoItemName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 4,
+  },
+  situacaoItemDescription: {
+    fontSize: 14,
+    color: "#6b7280",
   },
   bottomNavigation: {
     flexDirection: "row",
