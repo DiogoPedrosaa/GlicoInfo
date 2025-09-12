@@ -12,6 +12,9 @@ import HomeScreen from "../screens/HomeScreen";
 import RegisterGlicemiaScreen from "../screens/RegisterGlicemiaScreen";
 import RegisterMedicationScreen from "../screens/RegisterMedicationScreen";
 import RegisterMealScreen from "../screens/RegisterMealScreen";
+import ProfileScreen from "../screens/ProfileScreen";
+import EditProfileScreen from "../screens/EditProfileScreen";
+import HistoryScreen from "../screens/HistoryScreen";
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -23,6 +26,9 @@ export type MainStackParamList = {
   RegisterGlicemia: undefined;
   RegisterMedication: undefined;
   RegisterMeal: undefined;
+  Profile: undefined;
+  EditProfile: undefined;
+  History: undefined;
 };
 
 const Auth = createNativeStackNavigator<AuthStackParamList>();
@@ -73,6 +79,21 @@ export default function AppNavigator() {
       <App.Screen
         name="RegisterMeal"
         component={RegisterMealScreen}
+        options={{ headerShown: false }}
+      />
+      <App.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <App.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
+        options={{ headerShown: false }}
+      />
+      <App.Screen
+        name="History"
+        component={HistoryScreen}
         options={{ headerShown: false }}
       />
     </App.Navigator>
