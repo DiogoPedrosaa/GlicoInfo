@@ -461,7 +461,6 @@ export default function RegisterGlicemiaScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Data e Hora */}
         <View style={styles.rowContainer}>
           <View style={styles.fieldContainer}>
             <Text style={styles.fieldLabel}>Data</Text>
