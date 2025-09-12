@@ -192,6 +192,7 @@ export default function HomeScreen() {
     }));
   };
 
+  // Função separada para logout (não está sendo usada no botão de perfil)
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -205,7 +206,9 @@ export default function HomeScreen() {
       style={styles.tabButton}
       onPress={() => {
         setActiveTab(tabKey);
-        onPress && onPress();
+        if (onPress) {
+          onPress();
+        }
       }}
     >
       <Icon 
@@ -228,6 +231,11 @@ export default function HomeScreen() {
 
   const handleNavigateToRegisterMeal = () => {
     navigation.navigate('RegisterMeal' as never);
+  };
+
+  const handleNavigateToProfile = () => {
+    console.log("Navegando para Profile..."); // Debug
+    navigation.navigate('Profile' as never);
   };
 
   // Função para recarregar dados quando voltar da tela de registro
@@ -259,7 +267,7 @@ export default function HomeScreen() {
 
   const proximosMedicamentos = generateMedicationSchedule(userData.medications);
 
-  // Determinar que informações mostrar no card de glicemia
+
   let glicemiaInfo;
   let hasGlicemiaData = false;
 
@@ -267,7 +275,7 @@ export default function HomeScreen() {
     glicemiaInfo = getGlicemiaInfo(glicemiaData.valor);
     hasGlicemiaData = true;
   } else {
-    // Valores padrão quando não há dados
+ 
     glicemiaInfo = {
       valor: 0,
       status: "Sem dados",
@@ -278,7 +286,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.logoContainer}>
@@ -296,7 +304,10 @@ export default function HomeScreen() {
             <Bell size={20} color="#6b7280" />
             <View style={styles.notificationDot} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.profileButton}>
+          <TouchableOpacity 
+            style={styles.profileButton}
+            onPress={handleNavigateToProfile}
+          >
             <Text style={styles.profileInitial}>{userData.firstName}</Text>
           </TouchableOpacity>
         </View>
@@ -423,11 +434,11 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Espaço extra para a navegação inferior */}
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Navegação Inferior */}
+      {/* Bottom Navigation */}
       <View style={styles.bottomNavigation}>
         <TabButton 
           icon={Home} 
@@ -438,6 +449,7 @@ export default function HomeScreen() {
           icon={FileText} 
           label="Relatórios" 
           tabKey="reports"
+          onPress={() => navigation.navigate('History' as never)}
         />
         <TabButton 
           icon={Bell} 
@@ -448,7 +460,7 @@ export default function HomeScreen() {
           icon={User} 
           label="Perfil" 
           tabKey="profile"
-          onPress={handleLogout}
+          onPress={handleNavigateToProfile}
         />
       </View>
     </SafeAreaView>
