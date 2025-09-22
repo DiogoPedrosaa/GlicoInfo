@@ -8,12 +8,15 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  Modal,
+  Animated,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../../navigation/AppNavigator";
-import { Mail, Lock, Eye, EyeOff, Heart } from "lucide-react-native";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { Mail, Lock, Eye, EyeOff, Heart, CheckCircle, X } from "lucide-react-native";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../../api/firebase/config";
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
@@ -24,6 +27,9 @@ export default function LoginScreen() {
   const [senha, setSenha] = useState("");
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
   const [errors, setErrors] = useState({
     email: "",
     password: "",
@@ -65,6 +71,15 @@ export default function LoginScreen() {
     return isValid;
   };
 
+  const validateEmail = (email: string) => {
+    if (!email.trim()) {
+      return "E-mail é obrigatório";
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      return "E-mail inválido";
+    }
+    return null;
+  };
+
   const getFirebaseErrorMessage = (errorCode: string) => {
     switch (errorCode) {
       case "auth/invalid-email":
@@ -83,6 +98,21 @@ export default function LoginScreen() {
         return "Erro de conexão. Verifique sua internet";
       default:
         return "Erro no login. Tente novamente";
+    }
+  };
+
+  const getResetErrorMessage = (errorCode: string) => {
+    switch (errorCode) {
+      case "auth/invalid-email":
+        return "E-mail inválido";
+      case "auth/user-not-found":
+        return "Não existe uma conta com este e-mail";
+      case "auth/network-request-failed":
+        return "Erro de conexão. Verifique sua internet";
+      case "auth/too-many-requests":
+        return "Muitas tentativas. Tente novamente mais tarde";
+      default:
+        return "Erro ao enviar e-mail. Tente novamente";
     }
   };
 
@@ -114,6 +144,48 @@ export default function LoginScreen() {
     }
   }
 
+  async function handleForgotPassword() {
+    // Validar se o email foi preenchido
+    const emailError = validateEmail(email);
+    if (emailError) {
+      Alert.alert(
+        "E-mail necessário",
+        "Por favor, digite seu e-mail no campo acima antes de solicitar a redefinição de senha."
+      );
+      setErrors(prev => ({ ...prev, email: emailError }));
+      return;
+    }
+
+    try {
+      setResetLoading(true);
+      
+      await sendPasswordResetEmail(auth, email.trim());
+      
+      // Mostrar modal customizado ao invés do Alert
+      setResetEmail(email);
+      setShowSuccessModal(true);
+      
+    } catch (error: any) {
+      console.log("Reset password error:", error.code, error.message);
+      
+      const errorMessage = getResetErrorMessage(error.code);
+      
+      Alert.alert(
+        "❌ Erro",
+        errorMessage,
+        [
+          {
+            text: "OK",
+            style: "default"
+          }
+        ]
+      );
+      
+    } finally {
+      setResetLoading(false);
+    }
+  }
+
   const handleEmailChange = (text: string) => {
     setEmail(text);
     if (errors.email) {
@@ -130,6 +202,11 @@ export default function LoginScreen() {
 
   const handleRegister = () => {
     navigation.navigate('Register');
+  };
+
+  const closeSuccessModal = () => {
+    setShowSuccessModal(false);
+    setResetEmail("");
   };
 
   return (
@@ -172,7 +249,7 @@ export default function LoginScreen() {
                 autoCapitalize="none"
                 value={email}
                 onChangeText={handleEmailChange}
-                editable={!loading}
+                editable={!loading && !resetLoading}
               />
             </View>
             {errors.email ? (
@@ -195,12 +272,12 @@ export default function LoginScreen() {
                 secureTextEntry={!show}
                 value={senha}
                 onChangeText={handlePasswordChange}
-                editable={!loading}
+                editable={!loading && !resetLoading}
               />
               <TouchableOpacity 
                 onPress={() => setShow(!show)} 
                 style={styles.eyeButton}
-                disabled={loading}
+                disabled={loading || resetLoading}
               >
                 {show ? (
                   <EyeOff size={20} color={errors.password ? "#ef4444" : "#94a3b8"} />
@@ -215,15 +292,21 @@ export default function LoginScreen() {
           </View>
 
           {/* Link esqueci senha */}
-          <TouchableOpacity style={styles.forgotPassword}>
-            <Text style={styles.forgotPasswordText}>Esqueci minha senha</Text>
+          <TouchableOpacity 
+            style={styles.forgotPassword}
+            onPress={handleForgotPassword}
+            disabled={loading || resetLoading}
+          >
+            <Text style={styles.forgotPasswordText}>
+              {resetLoading ? "Enviando..." : "Esqueci minha senha"}
+            </Text>
           </TouchableOpacity>
 
           {/* Botão Entrar */}
           <TouchableOpacity
-            style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+            style={[styles.loginButton, (loading || resetLoading) && styles.loginButtonDisabled]}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={loading || resetLoading}
           >
             <Text style={styles.loginButtonText}>
               {loading ? "Entrando..." : "Entrar"}
@@ -239,12 +322,62 @@ export default function LoginScreen() {
           <TouchableOpacity 
             style={styles.registerButton} 
             onPress={handleRegister}
-            disabled={loading}
+            disabled={loading || resetLoading}
           >
             <Text style={styles.registerButtonText}>Cadastre-se</Text>
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Modal de Sucesso Customizado */}
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeSuccessModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Header do Modal */}
+            <View style={styles.modalHeader}>
+              <View style={styles.successIconContainer}>
+                <CheckCircle size={24} color="#10b981" />
+              </View>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={closeSuccessModal}
+              >
+                <X size={20} color="#9ca3af" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Conteúdo do Modal */}
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>E-mail enviado</Text>
+              
+              <Text style={styles.modalDescription}>
+                Enviamos um link para redefinir sua senha para:
+              </Text>
+              
+              <View style={styles.emailContainer}>
+                <Text style={styles.emailText}>{resetEmail}</Text>
+              </View>
+              
+              <Text style={styles.modalInstructions}>
+                Verifique sua caixa de entrada e spam.
+              </Text>
+            </View>
+
+            {/* Botão OK */}
+            <TouchableOpacity 
+              style={styles.modalButton}
+              onPress={closeSuccessModal}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -291,7 +424,6 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     textAlign: "center",
   },
-  // Novo estilo para container de erro geral
   errorContainer: {
     backgroundColor: "#fee2e2",
     borderLeftWidth: 4,
@@ -337,7 +469,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  // Novo estilo para input com erro
   inputError: {
     borderColor: "#ef4444",
     backgroundColor: "#fef2f2",
@@ -354,7 +485,6 @@ const styles = StyleSheet.create({
   eyeButton: {
     padding: 4,
   },
-  // Novo estilo para erro de campo
   fieldError: {
     color: "#ef4444",
     fontSize: 12,
@@ -417,5 +547,105 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#2563eb",
+  },
+  
+  // Estilos do Modal Customizado
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  modalContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    width: "100%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  successIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#dcfce7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeButton: {
+    padding: 8,
+  },
+  modalContent: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1f2937",
+    marginBottom: 16,
+  },
+  modalDescription: {
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+  emailContainer: {
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  emailText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+    textAlign: "center",
+  },
+  modalInstructions: {
+    fontSize: 14,
+    color: "#9ca3af",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  modalButton: {
+    backgroundColor: "#2563eb",
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#2563eb",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
   },
 });
