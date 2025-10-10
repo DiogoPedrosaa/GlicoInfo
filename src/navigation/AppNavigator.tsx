@@ -15,6 +15,7 @@ import RegisterMealScreen from "../screens/RegisterMealScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import EditProfileScreen from "../screens/EditProfileScreen";
 import HistoryScreen from "../screens/HistoryScreen";
+import NotificationsScreen from "../screens/NotificationsScreen";
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -29,6 +30,7 @@ export type MainStackParamList = {
   Profile: undefined;
   EditProfile: undefined;
   History: undefined;
+  Notifications: undefined;
 };
 
 const Auth = createNativeStackNavigator<AuthStackParamList>();
@@ -94,6 +96,11 @@ export default function AppNavigator() {
       <App.Screen
         name="History"
         component={HistoryScreen}
+        options={{ headerShown: false }}
+      />
+      <App.Screen
+        name="Notifications"
+        component={NotificationsScreen}
         options={{ headerShown: false }}
       />
     </App.Navigator>
