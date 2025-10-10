@@ -22,7 +22,7 @@ import {
 } from "lucide-react-native";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../../api/firebase/config";
-import { doc, getDoc, collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, orderBy, limit, getDocs, onSnapshot } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
 
 interface UserData {
@@ -49,6 +49,17 @@ interface GlicemiaData {
   timestamp: number;
 }
 
+// NOVA INTERFACE PARA OS LEMBRETES
+interface ReminderData {
+  id: string;
+  title: string;
+  description: string;
+  time: string;
+  type: "medication" | "meal" | "glucose";
+  frequency: string;
+  isActive: boolean;
+}
+
 export default function HomeScreen() {
   const navigation = useNavigation();
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -56,6 +67,8 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [loadingGlicemia, setLoadingGlicemia] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
+  const [proximosMedicamentos, setProximosMedicamentos] = useState<any[]>([]);
+  const [loadingReminders, setLoadingReminders] = useState(true);
 
   // Função para calcular informações da glicemia baseado no valor
   const getGlicemiaInfo = (valor: number) => {
@@ -97,9 +110,52 @@ export default function HomeScreen() {
     }
   };
 
+  // FUNÇÃO PARA OBTER ÍCONE DO TIPO DE LEMBRETE
+  const getReminderIcon = (type: string) => {
+    switch (type) {
+      case "medication":
+        return Pill;
+      case "glucose":
+        return Droplet;
+      case "meal":
+        return Utensils;
+      default:
+        return Pill;
+    }
+  };
+
+  // FUNÇÃO PARA OBTER COR DO TIPO DE LEMBRETE
+  const getReminderColor = (type: string) => {
+    switch (type) {
+      case "medication":
+        return "#2563eb";
+      case "glucose":
+        return "#ef4444";
+      case "meal":
+        return "#10b981";
+      default:
+        return "#6b7280";
+    }
+  };
+
+  // FUNÇÃO PARA OBTER LABEL DO TIPO
+  const getReminderTypeLabel = (type: string) => {
+    switch (type) {
+      case "medication":
+        return "Medicação";
+      case "glucose":
+        return "Teste de glicemia";
+      case "meal":
+        return "Refeição";
+      default:
+        return "Lembrete";
+    }
+  };
+
   useEffect(() => {
     loadUserData();
     loadLastGlicemia();
+    loadReminders();
   }, []);
 
   const loadUserData = async () => {
@@ -165,31 +221,67 @@ export default function HomeScreen() {
     }
   };
 
+  // FUNÇÃO CORRIGIDA PARA CARREGAR LEMBRETES EM TEMPO REAL
+  const loadReminders = async () => {
+    try {
+      if (!auth.currentUser) {
+        setLoadingReminders(false);
+        return;
+      }
+
+      console.log("Carregando lembretes para user:", auth.currentUser.uid);
+
+      const q = query(
+        collection(db, "reminders"),
+        where("userId", "==", auth.currentUser.uid),
+        where("isActive", "==", true),
+        orderBy("time", "asc")
+      );
+      
+      // USAR onSnapshot PARA TEMPO REAL
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        console.log("Documentos encontrados:", snapshot.size);
+        
+        const remindersData: any[] = [];
+        
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          console.log("Dados do lembrete:", data);
+          
+          remindersData.push({
+            id: doc.id,
+            nome: data.title,
+            dosagem: data.description || "Conforme prescrição",
+            descricao: getReminderTypeLabel(data.type),
+            horario: data.time,
+            cor: getReminderColor(data.type),
+            tipo: data.type,
+            frequency: data.frequency,
+            tomado: false
+          });
+        });
+        
+        console.log("Lembretes processados:", remindersData);
+        setProximosMedicamentos(remindersData);
+        setLoadingReminders(false);
+      }, (error) => {
+        console.log("Erro ao carregar lembretes:", error);
+        setLoadingReminders(false);
+      });
+
+      // Retornar função de cleanup
+      return unsubscribe;
+    } catch (error) {
+      console.log("Erro ao configurar listener de lembretes:", error);
+      setLoadingReminders(false);
+    }
+  };
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Bom dia";
     if (hour < 18) return "Boa tarde";
     return "Boa noite";
-  };
-
-  const generateMedicationSchedule = (medications: string[]) => {
-    // Gera horários mockados baseados nos medicamentos reais do usuário
-    const schedules = [
-      { time: "08:00", description: "Jejum" },
-      { time: "12:00", description: "Após almoço" },
-      { time: "18:00", description: "Antes do jantar" },
-      { time: "22:00", description: "Antes de dormir" }
-    ];
-
-    return medications.map((medication, index) => ({
-      id: index + 1,
-      nome: medication,
-      dosagem: index === 0 ? "500mg" : index === 1 ? "10 unidades" : "30mg",
-      descricao: schedules[index % schedules.length].description,
-      horario: schedules[index % schedules.length].time,
-      cor: index === 0 ? "#2563eb" : "#6b7280",
-      tomado: false
-    }));
   };
 
   // Função separada para logout (não está sendo usada no botão de perfil)
@@ -241,6 +333,7 @@ export default function HomeScreen() {
   // Função para recarregar dados quando voltar da tela de registro
   const handleFocusScreen = () => {
     loadLastGlicemia(); // Recarrega a última glicemia
+    loadReminders(); // Recarrega os lembretes
   };
 
   useEffect(() => {
@@ -265,9 +358,6 @@ export default function HomeScreen() {
     );
   }
 
-  const proximosMedicamentos = generateMedicationSchedule(userData.medications);
-
-
   let glicemiaInfo;
   let hasGlicemiaData = false;
 
@@ -275,7 +365,6 @@ export default function HomeScreen() {
     glicemiaInfo = getGlicemiaInfo(glicemiaData.valor);
     hasGlicemiaData = true;
   } else {
- 
     glicemiaInfo = {
       valor: 0,
       status: "Sem dados",
@@ -286,7 +375,6 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.logoContainer}>
@@ -401,28 +489,68 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Próximos Medicamentos */}
-        {proximosMedicamentos.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Próximos Medicamentos</Text>
+        {/* SEÇÃO CORRIGIDA - Próximos Medicamentos */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Próximos Lembretes</Text>
+            {proximosMedicamentos.length > 0 && (
+              <TouchableOpacity 
+                onPress={() => navigation.navigate('Notifications' as never)}
+                style={styles.verTodosButton}
+              >
+                <Text style={styles.verTodosText}>Ver todos</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {loadingReminders ? (
+            <View style={styles.medicamentosLoading}>
+              <ActivityIndicator size="small" color="#2563eb" />
+              <Text style={styles.loadingText}>Carregando lembretes...</Text>
+            </View>
+          ) : proximosMedicamentos.length > 0 ? (
             <View style={styles.medicamentosContainer}>
-              {proximosMedicamentos.map((medicamento) => (
-                <View key={medicamento.id} style={styles.medicamentoItem}>
-                  <View style={styles.medicamentoLeft}>
-                    <View style={[styles.medicamentoDot, { backgroundColor: medicamento.cor }]} />
-                    <View style={styles.medicamentoInfo}>
-                      <Text style={styles.medicamentoNome}>{medicamento.nome}</Text>
-                      <Text style={styles.medicamentoDescricao}>
-                        {medicamento.dosagem} - {medicamento.descricao}
-                      </Text>
+              {proximosMedicamentos.slice(0, 4).map((medicamento) => {
+                const IconComponent = getReminderIcon(medicamento.tipo);
+                return (
+                  <View key={medicamento.id} style={styles.medicamentoItem}>
+                    <View style={styles.medicamentoLeft}>
+                      <View style={[styles.medicamentoIconContainer, { backgroundColor: `${medicamento.cor}15` }]}>
+                        <IconComponent size={16} color={medicamento.cor} />
+                      </View>
+                      <View style={styles.medicamentoInfo}>
+                        <Text style={styles.medicamentoNome}>{medicamento.nome}</Text>
+                        <Text style={styles.medicamentoDescricao}>
+                          {medicamento.descricao}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.medicamentoRight}>
+                      <Text style={styles.medicamentoHorario}>{medicamento.horario}</Text>
+                      <Text style={styles.medicamentoFrequency}>{medicamento.frequency}</Text>
                     </View>
                   </View>
-                  <Text style={styles.medicamentoHorario}>{medicamento.horario}</Text>
-                </View>
-              ))}
+                );
+              })}
             </View>
-          </View>
-        )}
+          ) : (
+            <View style={styles.noRemindersContainer}>
+              <View style={styles.noRemindersIcon}>
+                <Bell size={32} color="#d1d5db" />
+              </View>
+              <Text style={styles.noRemindersTitle}>Nenhum lembrete ativo</Text>
+              <Text style={styles.noRemindersText}>
+                Crie lembretes na tela de notificações para receber alertas
+              </Text>
+              <TouchableOpacity 
+                style={styles.createReminderButton}
+                onPress={() => navigation.navigate('Notifications' as never)}
+              >
+                <Text style={styles.createReminderButtonText}>Criar Lembrete</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         {/* Alertas de Saúde */}
         {userData.hasChronicComplications && (
@@ -433,7 +561,6 @@ export default function HomeScreen() {
             </Text>
           </View>
         )}
-
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -455,6 +582,7 @@ export default function HomeScreen() {
           icon={Bell} 
           label="Notificações" 
           tabKey="notifications"
+          onPress={() => navigation.navigate('Notifications' as never)}
         />
         <TabButton 
           icon={User} 
@@ -657,6 +785,83 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#1f2937",
     marginBottom: 16,
+  },
+  // NOVOS ESTILOS PARA A SEÇÃO DE LEMBRETES
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  verTodosButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "#f3f4f6",
+  },
+  verTodosText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#2563eb",
+  },
+  medicamentosLoading: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  noRemindersContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  noRemindersIcon: {
+    marginBottom: 12,
+  },
+  noRemindersTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  noRemindersText: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  createReminderButton: {
+    backgroundColor: "#2563eb",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  createReminderButtonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#fff",
+  },
+  medicamentoIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  medicamentoRight: {
+    alignItems: "flex-end",
+  },
+  medicamentoFrequency: {
+    fontSize: 12,
+    color: "#9ca3af",
+    marginTop: 2,
   },
   actionsContainer: {
     flexDirection: "row",
