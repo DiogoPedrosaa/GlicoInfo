@@ -10,20 +10,18 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { 
-  Home, 
-  FileText, 
-  Bell, 
-  User, 
   Droplet, 
   Pill, 
   Utensils,
   LogOut,
-  Heart
+  Heart,
+  Bell
 } from "lucide-react-native";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../../api/firebase/config";
 import { doc, getDoc, collection, query, where, orderBy, limit, getDocs, onSnapshot } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
+import BottomNavigation from "../../components/BottomNavigation";
 
 interface UserData {
   name: string;
@@ -66,7 +64,6 @@ export default function HomeScreen() {
   const [glicemiaData, setGlicemiaData] = useState<GlicemiaData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingGlicemia, setLoadingGlicemia] = useState(true);
-  const [activeTab, setActiveTab] = useState("home");
   const [proximosMedicamentos, setProximosMedicamentos] = useState<any[]>([]);
   const [loadingReminders, setLoadingReminders] = useState(true);
 
@@ -292,26 +289,6 @@ export default function HomeScreen() {
       console.log("Erro ao fazer logout:", error);
     }
   };
-
-  const TabButton = ({ icon: Icon, label, tabKey, onPress }: any) => (
-    <TouchableOpacity
-      style={styles.tabButton}
-      onPress={() => {
-        setActiveTab(tabKey);
-        if (onPress) {
-          onPress();
-        }
-      }}
-    >
-      <Icon 
-        size={24} 
-        color={activeTab === tabKey ? "#2563eb" : "#9ca3af"} 
-      />
-      {activeTab === tabKey && (
-        <View style={styles.activeTabIndicator} />
-      )}
-    </TouchableOpacity>
-  );
 
   const handleNavigateToRegisterGlicemia = () => {
     navigation.navigate('RegisterGlicemia' as never);
@@ -565,32 +542,8 @@ export default function HomeScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNavigation}>
-        <TabButton 
-          icon={Home} 
-          label="Início" 
-          tabKey="home"
-        />
-        <TabButton 
-          icon={FileText} 
-          label="Relatórios" 
-          tabKey="reports"
-          onPress={() => navigation.navigate('History' as never)}
-        />
-        <TabButton 
-          icon={Bell} 
-          label="Notificações" 
-          tabKey="notifications"
-          onPress={() => navigation.navigate('Notifications' as never)}
-        />
-        <TabButton 
-          icon={User} 
-          label="Perfil" 
-          tabKey="profile"
-          onPress={handleNavigateToProfile}
-        />
-      </View>
+      {/* Bottom Navigation - SEM activeTab prop */}
+      <BottomNavigation />
     </SafeAreaView>
   );
 }
@@ -961,31 +914,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     color: "#2563eb",
-  },
-  bottomNavigation: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
-    position: "relative",
-  },
-  activeTabIndicator: {
-    position: "absolute",
-    bottom: -12,
-    height: 3,
-    width: 24,
-    backgroundColor: "#2563eb",
-    borderRadius: 2,
   },
 });
