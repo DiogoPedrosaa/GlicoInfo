@@ -10,10 +10,6 @@ import {
 } from "react-native";
 import { 
   ArrowLeft, 
-  Home, 
-  FileText, 
-  Bell, 
-  User,
   ChevronRight,
   UserCircle,
   Edit3,
@@ -27,6 +23,7 @@ import { signOut } from "firebase/auth";
 import { auth, db } from "../../api/firebase/config";
 import { doc, getDoc } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
+import BottomNavigation from "../../components/BottomNavigation";
 
 interface UserData {
   name: string;
@@ -59,7 +56,6 @@ export default function ProfileScreen() {
   const navigation = useNavigation();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("profile");
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
 
   useEffect(() => {
@@ -236,24 +232,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const TabButton = ({ icon: Icon, label, tabKey, onPress }: any) => (
-    <TouchableOpacity
-      style={styles.tabButton}
-      onPress={() => {
-        setActiveTab(tabKey);
-        onPress && onPress();
-      }}
-    >
-      <Icon 
-        size={24} 
-        color={activeTab === tabKey ? "#2563eb" : "#9ca3af"} 
-      />
-      {activeTab === tabKey && (
-        <View style={styles.activeTabIndicator} />
-      )}
-    </TouchableOpacity>
-  );
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -394,34 +372,13 @@ export default function ProfileScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Navegação Inferior */}
-      <View style={styles.bottomNavigation}>
-        <TabButton 
-          icon={Home} 
-          label="Início" 
-          tabKey="home"
-          onPress={() => navigation.goBack()}
-        />
-        <TabButton 
-          icon={FileText} 
-          label="Relatórios" 
-          tabKey="reports"
-        />
-        <TabButton 
-          icon={Bell} 
-          label="Notificações" 
-          tabKey="notifications"
-        />
-        <TabButton 
-          icon={User} 
-          label="Perfil" 
-          tabKey="profile"
-        />
-      </View>
+      {/* Bottom Navigation */}
+      <BottomNavigation />
     </View>
   );
 }
 
+// STYLES CORRIGIDOS - removendo bottomNavigation, tabButton, activeTabIndicator
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -468,6 +425,8 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   content: {
     flex: 1,
@@ -620,31 +579,5 @@ const styles = StyleSheet.create({
   },
   toggleThumbEnabled: {
     alignSelf: "flex-end",
-  },
-  bottomNavigation: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
-    position: "relative",
-  },
-  activeTabIndicator: {
-    position: "absolute",
-    bottom: -12,
-    height: 3,
-    width: 24,
-    backgroundColor: "#2563eb",
-    borderRadius: 2,
   },
 });
