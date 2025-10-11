@@ -13,17 +13,15 @@ import {
   Droplet, 
   Pill, 
   Utensils,
-  Home,
-  FileText,
   Bell,
-  User,
   TrendingUp,
   TrendingDown,
   Minus
 } from "lucide-react-native";
 import { auth, db } from "../../api/firebase/config";
 import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import BottomNavigation from "../../components/BottomNavigation";
 
 interface GlicemiaRecord {
   id: string;
@@ -83,7 +81,6 @@ export default function HistoryScreen() {
   const navigation = useNavigation();
   const [activeFilter, setActiveFilter] = useState("hoje");
   const [activeTab, setActiveTab] = useState("glicemia");
-  const [activeNavTab, setActiveNavTab] = useState("reports");
   const [loading, setLoading] = useState(true);
   
   const [glicemiaRecords, setGlicemiaRecords] = useState<GlicemiaRecord[]>([]);
@@ -111,6 +108,24 @@ export default function HistoryScreen() {
   useEffect(() => {
     loadData();
   }, [activeFilter]);
+
+  // Log quando a tela ganha foco
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('\n📱 === HISTORY SCREEN FOCADA ===');
+      console.log('🔍 Navigation object:', navigation ? 'EXISTS' : 'NULL');
+      console.log('📋 Navigation methods:', navigation ? Object.keys(navigation) : 'N/A');
+      
+      if (navigation) {
+        console.log('✅ Navigation.navigate exists:', typeof navigation.navigate);
+        console.log('✅ Navigation state:', navigation.getState ? navigation.getState() : 'No getState');
+      }
+      
+      return () => {
+        console.log('📱 History screen perdeu foco');
+      };
+    }, [navigation])
+  );
 
   const getDateRange = () => {
     const now = new Date();
@@ -386,44 +401,18 @@ export default function HistoryScreen() {
     navigation.goBack();
   };
 
-  const handleNavigateToProfile = () => {
-    navigation.navigate('Profile' as never);
-  };
-
-  const TabButton = ({ icon: Icon, label, tabKey, onPress }: any) => (
-    <TouchableOpacity
-      style={styles.tabButton}
-      onPress={() => {
-        setActiveNavTab(tabKey);
-        if (onPress) {
-          onPress();
-        }
-      }}
-    >
-      <Icon 
-        size={24} 
-        color={activeNavTab === tabKey ? "#2563eb" : "#9ca3af"} 
-      />
-      {activeNavTab === tabKey && (
-        <View style={styles.activeTabIndicator} />
-      )}
-    </TouchableOpacity>
-  );
-
   const statusMessage = getGlicemiaStatusMessage();
   const StatusIcon = statusMessage.icon;
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* Header CORRIGIDO */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
           <ArrowLeft size={24} color="#374151" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Controle Glicêmico</Text>
-        <TouchableOpacity style={styles.notificationButton}>
-          <Bell size={20} color="#6b7280" />
-        </TouchableOpacity>
+        <View style={styles.headerRight} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -633,31 +622,8 @@ export default function HistoryScreen() {
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNavigation}>
-        <TabButton 
-          icon={Home} 
-          label="Início" 
-          tabKey="home"
-          onPress={() => navigation.goBack()}
-        />
-        <TabButton 
-          icon={FileText} 
-          label="Relatórios" 
-          tabKey="reports"
-        />
-        <TabButton 
-          icon={Bell} 
-          label="Notificações" 
-          tabKey="notifications"
-        />
-        <TabButton 
-          icon={User} 
-          label="Perfil" 
-          tabKey="profile"
-          onPress={handleNavigateToProfile}
-        />
-      </View>
+      {/* Bottom Navigation - SEM activeTab prop */}
+      <BottomNavigation />
     </SafeAreaView>
   );
 }
@@ -679,14 +645,17 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+    width: 40, // Largura fixa para centralizar
   },
   headerTitle: {
+    flex: 1, // Ocupa o espaço central
     fontSize: 18,
     fontWeight: "600",
     color: "#1f2937",
+    textAlign: "center", // Centraliza o texto
   },
-  notificationButton: {
-    padding: 8,
+  headerRight: {
+    width: 40, // Mesma largura do backButton para equilibrar
   },
   content: {
     flex: 1,
@@ -858,31 +827,5 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     textAlign: "center",
     lineHeight: 20,
-  },
-  bottomNavigation: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
-    position: "relative",
-  },
-  activeTabIndicator: {
-    position: "absolute",
-    bottom: -12,
-    height: 3,
-    width: 24,
-    backgroundColor: "#2563eb",
-    borderRadius: 2,
   },
 });
