@@ -20,9 +20,6 @@ import {
   ArrowLeft,
   Bell,
   Plus,
-  Home,
-  FileText,
-  User,
   Droplet,
   Pill,
   Utensils,
@@ -48,6 +45,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { useNavigation } from "@react-navigation/native";
+import BottomNavigation from "../../components/BottomNavigation";
 
 // CONFIGURAÇÃO CORRIGIDA - REMOVENDO O DEPRECATED shouldShowAlert
 Notifications.setNotificationHandler({
@@ -649,25 +647,6 @@ export default function NotificationsScreen() {
     navigation.goBack();
   };
 
-  const handleNavigateToProfile = () => {
-    navigation.navigate("Profile" as never);
-  };
-
-  const TabButton = ({ icon: Icon, label, tabKey, onPress }: any) => (
-    <TouchableOpacity
-      style={styles.tabButton}
-      onPress={() => {
-        setActiveTab(tabKey);
-        if (onPress) {
-          onPress();
-        }
-      }}
-    >
-      <Icon size={24} color={activeTab === tabKey ? "#2563eb" : "#9ca3af"} />
-      {activeTab === tabKey && <View style={styles.activeTabIndicator} />}
-    </TouchableOpacity>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -1192,7 +1171,7 @@ export default function NotificationsScreen() {
         </View>
       </Modal>
 
-      {/* Time Picker para Adicionar */}
+      {/* Time Pickers */}
       {showTimePicker && (
         <DateTimePicker
           value={selectedTime}
@@ -1204,7 +1183,6 @@ export default function NotificationsScreen() {
         />
       )}
 
-      {/* Time Picker para Editar */}
       {showEditTimePicker && (
         <DateTimePicker
           value={editSelectedTime}
@@ -1217,27 +1195,8 @@ export default function NotificationsScreen() {
       )}
 
       {/* Bottom Navigation */}
-      <View style={styles.bottomNavigation}>
-        <TabButton
-          icon={Home}
-          label="Início"
-          tabKey="home"
-          onPress={() => navigation.goBack()}
-        />
-        <TabButton
-          icon={FileText}
-          label="Relatórios"
-          tabKey="reports"
-          onPress={() => navigation.navigate("History" as never)}
-        />
-        <TabButton icon={Bell} label="Notificações" tabKey="notifications" />
-        <TabButton
-          icon={User}
-          label="Perfil"
-          tabKey="profile"
-          onPress={handleNavigateToProfile}
-        />
-      </View>
+      <BottomNavigation />
+      
     </SafeAreaView>
   );
 }
@@ -1483,33 +1442,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#6b7280",
   },
-  bottomNavigation: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
-    position: "relative",
-  },
-  activeTabIndicator: {
-    position: "absolute",
-    bottom: -12,
-    height: 3,
-    width: 24,
-    backgroundColor: "#2563eb",
-    borderRadius: 2,
-  },
-  
   // Modal Styles
   modalOverlay: {
     flex: 1,
