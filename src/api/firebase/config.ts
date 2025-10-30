@@ -1,6 +1,17 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+// api/firebase/config.ts (exemplo)
+import { Platform } from "react-native";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+
+import {
+  getAuth,
+  initializeAuth,
+  setPersistence,
+  browserLocalPersistence,
+  type Auth,
+  type Persistence,
+} from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY!,
@@ -12,13 +23,28 @@ const firebaseConfig = {
   measurementId: process.env.EXPO_PUBLIC_MEASUREMENT_ID!,
 };
 
-// Inicializa o Firebase
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-// Inicializa o Auth SEM persistência customizada
-const auth = getAuth(app);
+// Pega getReactNativePersistence via require pra contornar os types do SDK v12
+const { getReactNativePersistence } = require("firebase/auth") as {
+  getReactNativePersistence: (storage: typeof AsyncStorage) => Persistence;
+};
 
-// Inicializa o Firestore
+let auth: Auth;
+if (Platform.OS === "web") {
+  auth = getAuth(app);
+  setPersistence(auth, browserLocalPersistence).catch(() => {});
+} else {
+  try {
+    auth = initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    auth = getAuth(app);
+  }
+}
+
+// 👇 volte a expor o Firestore daqui
 const db = getFirestore(app);
 
-export { auth, db };
+export { app, auth, db };
