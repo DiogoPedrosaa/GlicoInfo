@@ -50,8 +50,8 @@ import BottomNavigation from "../../components/BottomNavigation";
 // CONFIGURAÇÃO CORRIGIDA - REMOVENDO O DEPRECATED shouldShowAlert
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowBanner: true,    // Nova propriedade para mostrar banner
-    shouldShowList: true,      // Nova propriedade para mostrar na lista
+    shouldShowBanner: true, 
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),

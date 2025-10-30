@@ -1,9 +1,9 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { initializeAuth } from "firebase/auth";
+import { getReactNativePersistence } from "firebase/auth/react-native";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// No Expo/React Native, use EXPO_PUBLIC_ para acessar via process.env
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY!,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN!,
@@ -17,9 +17,12 @@ const firebaseConfig = {
 // Inicializa o Firebase
 const app = initializeApp(firebaseConfig);
 
-// Inicializa o Auth (a persistência será configurada automaticamente no React Native)
-export const auth = getAuth(app);
+// Inicializa o Auth COM PERSISTÊNCIA
+const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage)
+});
 
-// Exporta os outros serviços
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+// Inicializa o Firestore
+const db = getFirestore(app);
+
+export { auth, db };
