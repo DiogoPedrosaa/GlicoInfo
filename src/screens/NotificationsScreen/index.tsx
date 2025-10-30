@@ -169,6 +169,7 @@ export default function NotificationsScreen() {
             sound: true,
           },
           trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.CALENDAR, // ADICIONADO
             hour: hour,
             minute: minute,
             repeats: true,
@@ -192,6 +193,7 @@ export default function NotificationsScreen() {
             sound: true,
           },
           trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, // ADICIONADO
             seconds: secondsUntilTrigger,
           },
         });

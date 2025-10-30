@@ -19,6 +19,7 @@
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.18",
     "expo": "~53.0.20",
+    "expo-asset": "~11.1.7",
     "expo-constants": "~17.1.7",
     "expo-device": "~7.1.4",
     "expo-font": "~13.3.2",
