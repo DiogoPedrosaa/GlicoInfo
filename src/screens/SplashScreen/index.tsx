@@ -5,8 +5,8 @@ import {
   StyleSheet,
   Animated,
   Dimensions,
+  Image,
 } from 'react-native';
-import { Heart } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -27,7 +27,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
       useNativeDriver: true,
     }).start();
 
-    // Animação de pulsação do coração
+    // Animação de pulsação
     const createPulseAnimation = () => {
       return Animated.sequence([
         Animated.timing(pulseAnimation, {
@@ -85,7 +85,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
 
   return (
     <View style={styles.container}>
-      {/* Background com gradiente simulado */}
+      {/* Background */}
       <View style={styles.gradientBackground} />
       
       <Animated.View
@@ -96,6 +96,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
           },
         ]}
       >
+        {/* LOGO DO LOGIN */}
         <Animated.View
           style={[
             styles.logoContainer,
@@ -104,9 +105,11 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
             },
           ]}
         >
-          <View style={styles.iconContainer}>
-            <Heart size={40} color="#fff" fill="#fff" />
-          </View>
+          <Image
+            source={require('../LoginScreen/logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
         </Animated.View>
 
         <Text style={styles.appName}>GlicoInfo</Text>
@@ -143,8 +146,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#2563eb', // Azul mais vibrante
-    // Simulando gradiente com shadow/overlay
+    backgroundColor: '#ffffff',
     shadowColor: '#1d4ed8',
     shadowOffset: { width: 0, height: height },
     shadowOpacity: 0.3,
@@ -159,35 +161,27 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     marginBottom: 40,
-  },
-  iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 140,
+    height: 140,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    borderRadius: 70,
+    backgroundColor: 'transparent',
+  },
+  logo: {
+    width: 130,
+    height: 130,
   },
   appName: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#fff',
+    color: '#2563eb',
     marginBottom: 8,
     textAlign: 'center',
   },
   tagline: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#64748b',
     textAlign: 'center',
     marginBottom: 60,
   },
@@ -206,12 +200,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: '#2563eb',
     marginHorizontal: 4,
   },
   loadingText: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: '#64748b',
     fontWeight: '500',
   },
 });

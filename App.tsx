@@ -1,31 +1,55 @@
 // App.tsx
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import * as SplashScreen from "expo-splash-screen";
 import { NavigationContainer } from "@react-navigation/native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import AppNavigator from "./src/navigation/AppNavigator";
-import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from "@expo-google-fonts/inter";
-import { ActivityIndicator, View } from "react-native";
+import CustomSplashScreen from "./src/components/SplashScreen";
+
+SplashScreen.preventAutoHideAsync();
 
 export default function App() {
-  const [loaded] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
+  const [ready, setReady] = useState(false);
+  const [showCustomSplash, setShowCustomSplash] = useState(true);
 
-  if (!loaded) {
+  useEffect(() => {
+    // Se precisar carregar algo (ex: Firebase), faça aqui
+    const prepare = async () => {
+      // await algumaCoisa();
+
+      // Simular tempo de carregamento
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+
+      setReady(true);
+      setShowCustomSplash(false);
+    };
+    prepare();
+  }, []);
+
+  const onLayoutRootView = useCallback(async () => {
+    if (ready) await SplashScreen.hideAsync();
+  }, [ready]);
+
+  if (showCustomSplash) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator />
-      </View>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <CustomSplashScreen />
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <NavigationContainer>
-      <StatusBar style="auto" />
-      <AppNavigator />
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+      {ready ? (
+        <NavigationContainer>
+          <StatusBar style="auto" />
+          <AppNavigator />
+        </NavigationContainer>
+      ) : (
+        <View style={{ flex: 1 }} />
+      )}
+    </GestureHandlerRootView>
   );
 }

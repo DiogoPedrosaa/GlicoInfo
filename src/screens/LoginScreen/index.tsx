@@ -10,14 +10,16 @@ import {
   Platform,
   Alert,
   Modal,
-  Animated,
+  Image, // ADICIONAR
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../../navigation/AppNavigator";
-import { Mail, Lock, Eye, EyeOff, Heart, CheckCircle, X } from "lucide-react-native";
+import { Mail, Lock, Eye, EyeOff, CheckCircle, X } from "lucide-react-native";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../../api/firebase/config";
+import logo from "./logo.png";
+
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 
@@ -218,7 +220,12 @@ export default function LoginScreen() {
         {/* Logo e título */}
         <View style={styles.headerContainer}>
           <View style={styles.logoContainer}>
-            <Heart size={24} color="#fff" />
+            {/* SUBSTITUIR Heart por Image */}
+            <Image
+              source={logo}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.title}>GlicoInfo</Text>
           <Text style={styles.subtitle}>Sistema de Gestão Diabético</Text>
@@ -397,21 +404,26 @@ const styles = StyleSheet.create({
     marginBottom: 48,
   },
   logoContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#2563eb",
+    width: 120,  // AUMENTADO de 64
+    height: 120, // AUMENTADO de 64
+    borderRadius: 60,
+    backgroundColor: "transparent", // MUDADO de "#2563eb" para transparent
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 24,
-    shadowColor: "#2563eb",
+    shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 8,
+      height: 4,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  
+  logoImage: {
+    width: 110,  // AUMENTADO de 48
+    height: 110, // AUMENTADO de 48
   },
   title: {
     fontSize: 24,
