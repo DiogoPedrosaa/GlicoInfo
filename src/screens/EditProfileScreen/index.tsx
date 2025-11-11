@@ -26,6 +26,9 @@ interface UserData {
   diabetesTypeName: string;
   selectedMedications: string[];
   selectedMedicationsNames: string[];
+  hasChronicComplications: boolean; 
+  selectedComplications: string[]; 
+  selectedComplicationsNames: string[]; 
 }
 
 interface DiabetesType {
@@ -41,14 +44,23 @@ interface Medication {
   pharmaceuticalForm: string;
 }
 
+interface Complication { // INTERFACE PARA COMPLICAÇÕES DO BANCO
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export default function EditProfileScreen() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadingMedications, setLoadingMedications] = useState(false);
+  const [loadingComplications, setLoadingComplications] = useState(false); // NOVO
   const [showDiabetesModal, setShowDiabetesModal] = useState(false);
   const [showMedicationsModal, setShowMedicationsModal] = useState(false);
+  const [showComplicationsModal, setShowComplicationsModal] = useState(false);
   const [availableMedications, setAvailableMedications] = useState<Medication[]>([]);
+  const [availableComplications, setAvailableComplications] = useState<Complication[]>([]); // NOVO
   
   const [formData, setFormData] = useState<UserData>({
     name: "",
@@ -60,6 +72,9 @@ export default function EditProfileScreen() {
     diabetesTypeName: "",
     selectedMedications: [],
     selectedMedicationsNames: [],
+    hasChronicComplications: false,
+    selectedComplications: [],
+    selectedComplicationsNames: [],
   });
 
   const diabetesTypes: DiabetesType[] = [
@@ -72,6 +87,7 @@ export default function EditProfileScreen() {
   useEffect(() => {
     loadUserData();
     loadMedications();
+    loadComplications(); // CARREGAR COMPLICAÇÕES
   }, []);
 
   const loadMedications = async () => {
@@ -100,6 +116,31 @@ export default function EditProfileScreen() {
     }
   };
 
+  // NOVA FUNÇÃO PARA CARREGAR COMPLICAÇÕES DO FIRESTORE
+  const loadComplications = async () => {
+    try {
+      setLoadingComplications(true);
+      const complicationsSnapshot = await getDocs(collection(db, "complications"));
+      const complicationsData: Complication[] = [];
+      
+      complicationsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        complicationsData.push({
+          id: doc.id,
+          name: data.name || "",
+          description: data.description || "",
+        });
+      });
+      
+      setAvailableComplications(complicationsData);
+    } catch (error) {
+      console.log("Erro ao carregar complicações:", error);
+      Alert.alert("Erro", "Não foi possível carregar as complicações");
+    } finally {
+      setLoadingComplications(false);
+    }
+  };
+
   const loadUserData = async () => {
     try {
       if (auth.currentUser) {
@@ -107,17 +148,21 @@ export default function EditProfileScreen() {
         if (userDoc.exists()) {
           const data = userDoc.data();
           const userMedications = data.medications || [];
+          const userComplications = data.chronicComplications || [];
           
           setFormData({
             name: data.name || "",
-            cpf: data.cpfHash || "", // CPF original não mascarado para comparação
-            cpfMasked: data.cpfMasked || "", // CPF mascarado para exibição
+            cpf: data.cpfHash || "",
+            cpfMasked: data.cpfMasked || "",
             weight: data.weight ? data.weight.toString() : "",
             height: data.height ? data.height.toString() : "",
             diabetesType: data.diabetesType || "",
             diabetesTypeName: getDiabetesTypeName(data.diabetesType || ""),
             selectedMedications: Array.isArray(userMedications) ? userMedications : [],
             selectedMedicationsNames: Array.isArray(userMedications) ? userMedications : [],
+            hasChronicComplications: data.hasChronicComplications || false,
+            selectedComplications: Array.isArray(userComplications) ? userComplications : [],
+            selectedComplicationsNames: Array.isArray(userComplications) ? userComplications : [],
           });
         }
       }
@@ -152,7 +197,6 @@ export default function EditProfileScreen() {
     const isSelected = formData.selectedMedications.includes(medication.id);
     
     if (isSelected) {
-      // Remove o medicamento
       const newSelectedMedications = formData.selectedMedications.filter(id => id !== medication.id);
       const newSelectedMedicationsNames = formData.selectedMedicationsNames.filter(name => 
         name !== medicationName
@@ -164,11 +208,33 @@ export default function EditProfileScreen() {
         selectedMedicationsNames: newSelectedMedicationsNames,
       });
     } else {
-      // Adiciona o medicamento
       setFormData({
         ...formData,
         selectedMedications: [...formData.selectedMedications, medication.id],
         selectedMedicationsNames: [...formData.selectedMedicationsNames, medicationName],
+      });
+    }
+  };
+
+  // FUNÇÃO PARA TOGGLE DE COMPLICAÇÕES (IGUAL MEDICAMENTOS)
+  const handleComplicationToggle = (complication: Complication) => {
+    const isSelected = formData.selectedComplicationsNames.includes(complication.name);
+    
+    if (isSelected) {
+      const newSelectedComplications = formData.selectedComplicationsNames.filter(
+        name => name !== complication.name
+      );
+      
+      setFormData({
+        ...formData,
+        selectedComplications: newSelectedComplications,
+        selectedComplicationsNames: newSelectedComplications,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        selectedComplications: [...formData.selectedComplicationsNames, complication.name],
+        selectedComplicationsNames: [...formData.selectedComplicationsNames, complication.name],
       });
     }
   };
@@ -218,7 +284,9 @@ export default function EditProfileScreen() {
         weight: parseFloat(formData.weight) || 0,
         height: parseFloat(formData.height) || 0,
         diabetesType: formData.diabetesType,
-        medications: formData.selectedMedicationsNames, // Salvar os nomes dos medicamentos
+        medications: formData.selectedMedicationsNames,
+        hasChronicComplications: formData.hasChronicComplications,
+        chronicComplications: formData.selectedComplicationsNames, // SALVAR COMPLICAÇÕES
         updatedAt: new Date(),
       };
 
@@ -277,12 +345,42 @@ export default function EditProfileScreen() {
     );
   };
 
-  if (loading || loadingMedications) {
+  // RENDERIZAR COMPLICAÇÃO (IGUAL MEDICAMENTO)
+  const renderComplicationItem = ({ item }: { item: Complication }) => {
+    const isSelected = formData.selectedComplicationsNames.includes(item.name);
+    
+    return (
+      <TouchableOpacity
+        style={[styles.listItem, isSelected && styles.selectedListItem]}
+        onPress={() => handleComplicationToggle(item)}
+      >
+        <View style={styles.medicationItemContent}>
+          <Text style={[styles.listItemText, isSelected && styles.selectedListItemText]}>
+            {item.name}
+          </Text>
+          {item.description && (
+            <Text style={[styles.medicationDetails, isSelected && styles.selectedMedicationDetails]}>
+              {item.description}
+            </Text>
+          )}
+        </View>
+        {isSelected && (
+          <Check size={20} color="#2563eb" />
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  if (loading || loadingMedications || loadingComplications) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#2563eb" />
         <Text style={styles.loadingText}>
-          {loading ? "Carregando dados..." : "Carregando medicamentos..."}
+          {loading 
+            ? "Carregando dados..." 
+            : loadingMedications 
+            ? "Carregando medicamentos..."
+            : "Carregando complicações..."}
         </Text>
       </View>
     );
@@ -422,6 +520,34 @@ export default function EditProfileScreen() {
               <ChevronDown size={20} color="#6b7280" />
             </TouchableOpacity>
           </View>
+
+          {/* COMPLICAÇÕES CRÔNICAS - SÓ APARECE SE USUÁRIO TEM */}
+          {formData.hasChronicComplications && (
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>
+                Complicações Crônicas {formData.selectedComplicationsNames.length > 0 && 
+                `(${formData.selectedComplicationsNames.length} selecionada${formData.selectedComplicationsNames.length > 1 ? 's' : ''})`}
+              </Text>
+              <TouchableOpacity
+                style={styles.selectButton}
+                onPress={() => setShowComplicationsModal(true)}
+              >
+                <Text style={[
+                  styles.selectButtonText,
+                  formData.selectedComplicationsNames.length === 0 && styles.selectButtonPlaceholder
+                ]}>
+                  {formData.selectedComplicationsNames.length > 0 
+                    ? formData.selectedComplicationsNames.join(", ")
+                    : "Selecione as complicações"
+                  }
+                </Text>
+                <ChevronDown size={20} color="#6b7280" />
+              </TouchableOpacity>
+              <Text style={styles.fieldNote}>
+                Atualize as complicações crônicas que você possui
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Save Button */}
@@ -499,6 +625,43 @@ export default function EditProfileScreen() {
           <FlatList
             data={availableMedications}
             renderItem={renderMedicationItem}
+            keyExtractor={(item) => item.id}
+            style={styles.modalList}
+          />
+        </View>
+      </Modal>
+
+      {/* MODAL DE COMPLICAÇÕES */}
+      <Modal
+        visible={showComplicationsModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              Complicações Crônicas
+              {formData.selectedComplicationsNames.length > 0 && 
+                ` (${formData.selectedComplicationsNames.length} selecionada${formData.selectedComplicationsNames.length > 1 ? 's' : ''})`
+              }
+            </Text>
+            <TouchableOpacity 
+              onPress={() => setShowComplicationsModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <Text style={styles.modalCloseText}>Concluir</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.modalInstructions}>
+            <Text style={styles.instructionsText}>
+              Selecione todas as complicações crônicas que você possui
+            </Text>
+          </View>
+          
+          <FlatList
+            data={availableComplications}
+            renderItem={renderComplicationItem}
             keyExtractor={(item) => item.id}
             style={styles.modalList}
           />
