@@ -5,13 +5,14 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Alert,
-  ScrollView,
   ActivityIndicator,
   Modal,
   FlatList,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { ArrowLeft, Home, FileText, Bell, User, ChevronDown } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { collection, addDoc, getDocs, query } from "firebase/firestore";
@@ -67,9 +68,7 @@ export default function RegisterGlicemiaScreen() {
     navigation.goBack();
   };
 
-  // Formatador para data (DD/MM/AAAA)
   const formatDate = (text: string) => {
-    // Remove tudo que não é número
     const numbers = text.replace(/\D/g, '');
     
     if (numbers.length <= 2) {
@@ -83,34 +82,24 @@ export default function RegisterGlicemiaScreen() {
     return text;
   };
 
-  // Formatador para hora (HH:MM) - Melhorado
   const formatTime = (text: string) => {
-    // Remove tudo que não é número
     const numbers = text.replace(/\D/g, '');
     
-    // Se tem menos de 3 dígitos, retorna apenas os números
     if (numbers.length <= 2) {
       return numbers;
-    } 
-    // Se tem 3 dígitos, adiciona : após o primeiro dígito se for válido
-    else if (numbers.length === 3) {
+    } else if (numbers.length === 3) {
       const firstDigit = numbers.substring(0, 1);
       const remaining = numbers.substring(1, 3);
       
-      // Se o primeiro dígito for 0, 1 ou 2, pode ser uma hora válida
       if (firstDigit === '0' || firstDigit === '1' || firstDigit === '2') {
         return `${firstDigit}${remaining.substring(0, 1)}:${remaining.substring(1, 2)}`;
       } else {
-        // Se não, trata como MM:SS onde o primeiro é minuto
         return `${numbers.substring(0, 2)}:${numbers.substring(2, 3)}`;
       }
-    }
-    // Se tem 4 dígitos, formata como HH:MM
-    else if (numbers.length === 4) {
+    } else if (numbers.length === 4) {
       const hours = numbers.substring(0, 2);
       const minutes = numbers.substring(2, 4);
       
-      // Validar horas (00-23) e minutos (00-59)
       const validHours = Math.min(parseInt(hours) || 0, 23).toString().padStart(2, '0');
       const validMinutes = Math.min(parseInt(minutes) || 0, 59).toString().padStart(2, '0');
       
@@ -120,7 +109,6 @@ export default function RegisterGlicemiaScreen() {
     return text;
   };
 
-  // Validar data no formato DD/MM/AAAA
   const validateDate = (dateString: string) => {
     const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
     const match = dateString.match(regex);
@@ -131,21 +119,17 @@ export default function RegisterGlicemiaScreen() {
     const month = parseInt(match[2]);
     const year = parseInt(match[3]);
     
-    // Verificar se os valores são válidos
     if (month < 1 || month > 12) return false;
     if (day < 1 || day > 31) return false;
     if (year < 1900 || year > new Date().getFullYear()) return false;
     
-    // Verificar se a data existe (considerando anos bissextos, etc.)
     const date = new Date(year, month - 1, day);
     return date.getDate() === day && 
            date.getMonth() === month - 1 && 
            date.getFullYear() === year;
   };
 
-  // Validar hora no formato HH:MM
   const validateTime = (timeString: string) => {
-    // Aceita formatos: HH:MM, H:MM, HH:M, H:M
     const regex = /^(\d{1,2}):(\d{1,2})$/;
     const match = timeString.match(regex);
     
@@ -163,7 +147,6 @@ export default function RegisterGlicemiaScreen() {
   };
 
   const handleTimeChange = (text: string) => {
-    // Se o usuário está apagando (texto menor que o anterior), permite
     if (text.length < formData.hora.length) {
       setFormData({ ...formData, hora: text });
       return;
@@ -203,20 +186,17 @@ export default function RegisterGlicemiaScreen() {
       return false;
     }
 
-    // Validar se o valor é um número válido
     const valor = parseFloat(formData.valor);
     if (isNaN(valor) || valor <= 0) {
       Alert.alert("Erro", "Por favor, informe um valor válido para a glicemia");
       return false;
     }
 
-    // Validar formato da data
     if (!validateDate(formData.data)) {
       Alert.alert("Erro", "Por favor, informe uma data válida no formato DD/MM/AAAA");
       return false;
     }
 
-    // Validar formato da hora
     if (!validateTime(formData.hora)) {
       Alert.alert("Erro", "Por favor, informe uma hora válida no formato HH:MM");
       return false;
@@ -251,7 +231,7 @@ export default function RegisterGlicemiaScreen() {
         message = `Sua glicemia pós-prandial está alta (${valor} mg/dL). Valores normais 2h após refeição: <140 mg/dL. Valores ≥200 mg/dL podem indicar diabetes.`;
         isAbnormal = true;
       }
-    } else { // ao acaso
+    } else {
       if (valor < 70) {
         message = `Seu nível de glicemia está baixo (${valor} mg/dL). Isso pode indicar hipoglicemia.`;
         isAbnormal = true;
@@ -274,7 +254,6 @@ export default function RegisterGlicemiaScreen() {
     if (!descricao.trim()) return;
 
     try {
-      // Buscar todas as complicações do Firebase
       const complicacoesQuery = query(collection(db, "complications"));
       const complicacoesSnapshot = await getDocs(complicacoesQuery);
       
@@ -291,7 +270,6 @@ export default function RegisterGlicemiaScreen() {
 
       const descricaoLower = descricao.toLowerCase();
       
-      // Verificar se alguma keyword das complicações está presente na descrição
       const complicacaoEncontrada = complicacoes.find(complicacao => {
         return complicacao.keywords.some(keyword => 
           descricaoLower.includes(keyword.toLowerCase())
@@ -323,7 +301,6 @@ export default function RegisterGlicemiaScreen() {
 
       const valor = parseFloat(formData.valor);
 
-      // Criar documento de glicemia
       const glicemiaData = {
         userId: auth.currentUser.uid,
         valor: valor,
@@ -336,16 +313,11 @@ export default function RegisterGlicemiaScreen() {
         timestamp: Date.now(),
       };
 
-      // Salvar no Firebase na coleção "glicemia"
       await addDoc(collection(db, "glicemia"), glicemiaData);
 
-      // Verificar nível de glicemia com base na situação
       checkGlicemiaLevel(valor, formData.situacao);
-
-      // Verificar complicações na descrição
       await checkComplications(formData.descricao);
 
-      // Mostrar sucesso e voltar
       Alert.alert(
         "✅ Sucesso",
         "Glicemia registrada com sucesso!",
@@ -407,182 +379,192 @@ export default function RegisterGlicemiaScreen() {
   );
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
-          <ArrowLeft size={24} color="#374151" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Registrar Glicemia</Text>
-        <View style={styles.headerRight} />
-      </View>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
+            <ArrowLeft size={24} color="#374151" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Registrar Glicemia</Text>
+          <View style={styles.headerRight} />
+        </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Espaço superior para centralizar */}
-        <View style={styles.spacer} />
-        
-        {/* Valor e Unidade */}
-        <View style={styles.rowContainer}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Valor</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.valor}
-              onChangeText={(text) => setFormData({ ...formData, valor: text })}
-              placeholder="129"
-              placeholderTextColor="#9ca3af"
-              keyboardType="numeric"
-              maxLength={3}
-            />
-          </View>
+        <KeyboardAwareScrollView
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          enableOnAndroid={true}
+          extraScrollHeight={30}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Espaço superior */}
+          <View style={styles.spacer} />
           
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Unidade</Text>
-            <View style={styles.unitContainer}>
-              <Text style={styles.unitText}>mg/dl</Text>
+          {/* Valor e Unidade */}
+          <View style={styles.rowContainer}>
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Valor</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.valor}
+                onChangeText={(text) => setFormData({ ...formData, valor: text })}
+                placeholder="129"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+                maxLength={3}
+              />
+            </View>
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Unidade</Text>
+              <View style={styles.unitContainer}>
+                <Text style={styles.unitText}>mg/dl</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Situação da Glicemia */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.fieldLabel}>Situação da glicemia</Text>
-          <TouchableOpacity
-            style={styles.selectButton}
-            onPress={() => setShowSituacaoModal(true)}
-          >
-            <Text style={[
-              styles.selectButtonText,
-              !formData.situacaoName && styles.selectButtonPlaceholder
-            ]}>
-              {formData.situacaoName || "Selecione a situação"}
-            </Text>
-            <ChevronDown size={20} color="#6b7280" />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.rowContainer}>
+          {/* Situação da Glicemia */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Data</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.data}
-              onChangeText={handleDateChange}
-              placeholder="dd/mm/aaaa"
-              placeholderTextColor="#9ca3af"
-              keyboardType="numeric"
-              maxLength={10}
-            />
-          </View>
-          
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Hora</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.hora}
-              onChangeText={handleTimeChange}
-              placeholder="hh:mm"
-              placeholderTextColor="#9ca3af"
-              keyboardType="numeric"
-              maxLength={5}
-            />
-          </View>
-        </View>
-
-        {/* Descrição */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.fieldLabel}>Descrição</Text>
-          <TextInput
-            style={styles.textArea}
-            value={formData.descricao}
-            onChangeText={(text) => setFormData({ ...formData, descricao: text })}
-            placeholder="Ex: Sentir tontura, visão embaçada..."
-            placeholderTextColor="#9ca3af"
-            multiline={true}
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
-
-        {/* Botões */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={styles.cancelButton} 
-            onPress={handleCancel}
-            disabled={loading}
-          >
-            <Text style={styles.cancelButtonText}>Cancelar</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.registerButton, loading && styles.registerButtonDisabled]} 
-            onPress={handleRegister}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.registerButtonText}>Registrar</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Espaço extra para a navegação inferior */}
-        <View style={{ height: 120 }} />
-      </ScrollView>
-
-      {/* Modal de Seleção de Situação */}
-      <Modal
-        visible={showSituacaoModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Situação da Glicemia</Text>
-            <TouchableOpacity 
-              onPress={() => setShowSituacaoModal(false)}
-              style={styles.modalCloseButton}
+            <Text style={styles.fieldLabel}>Situação da glicemia</Text>
+            <TouchableOpacity
+              style={styles.selectButton}
+              onPress={() => setShowSituacaoModal(true)}
             >
-              <Text style={styles.modalCloseText}>Fechar</Text>
+              <Text style={[
+                styles.selectButtonText,
+                !formData.situacaoName && styles.selectButtonPlaceholder
+              ]}>
+                {formData.situacaoName || "Selecione a situação"}
+              </Text>
+              <ChevronDown size={20} color="#6b7280" />
             </TouchableOpacity>
           </View>
-          
-          <FlatList
-            data={situacoesGlicemia}
-            renderItem={renderSituacaoItem}
-            keyExtractor={(item) => item.id}
-            style={styles.modalList}
-            showsVerticalScrollIndicator={false}
+
+          {/* Data e Hora */}
+          <View style={styles.rowContainer}>
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Data</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.data}
+                onChangeText={handleDateChange}
+                placeholder="dd/mm/aaaa"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+                maxLength={10}
+              />
+            </View>
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Hora</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.hora}
+                onChangeText={handleTimeChange}
+                placeholder="hh:mm"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+                maxLength={5}
+              />
+            </View>
+          </View>
+
+          {/* Descrição */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>Descrição</Text>
+            <TextInput
+              style={styles.textArea}
+              value={formData.descricao}
+              onChangeText={(text) => setFormData({ ...formData, descricao: text })}
+              placeholder="Ex: Sentir tontura, visão embaçada..."
+              placeholderTextColor="#9ca3af"
+              multiline={true}
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          </View>
+
+          {/* Botões */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity 
+              style={styles.cancelButton} 
+              onPress={handleCancel}
+              disabled={loading}
+            >
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.registerButton, loading && styles.registerButtonDisabled]} 
+              onPress={handleRegister}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.registerButtonText}>Registrar</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Espaçamento extra */}
+          <View style={{ height: 120 }} />
+        </KeyboardAwareScrollView>
+
+        {/* Modal de Seleção de Situação */}
+        <Modal
+          visible={showSituacaoModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Situação da Glicemia</Text>
+              <TouchableOpacity 
+                onPress={() => setShowSituacaoModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalCloseText}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <FlatList
+              data={situacoesGlicemia}
+              renderItem={renderSituacaoItem}
+              keyExtractor={(item) => item.id}
+              style={styles.modalList}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        </Modal>
+
+        {/* Navegação Inferior */}
+        <View style={styles.bottomNavigation}>
+          <TabButton 
+            icon={Home} 
+            label="Início" 
+            tabKey="home"
+            onPress={() => navigation.goBack()}
+          />
+          <TabButton 
+            icon={FileText} 
+            label="Relatórios" 
+            tabKey="reports"
+          />
+          <TabButton 
+            icon={Bell} 
+            label="Notificações" 
+            tabKey="notifications"
+          />
+          <TabButton 
+            icon={User} 
+            label="Perfil" 
+            tabKey="profile"
           />
         </View>
-      </Modal>
-
-      {/* Navegação Inferior */}
-      <View style={styles.bottomNavigation}>
-        <TabButton 
-          icon={Home} 
-          label="Início" 
-          tabKey="home"
-          onPress={() => navigation.goBack()}
-        />
-        <TabButton 
-          icon={FileText} 
-          label="Relatórios" 
-          tabKey="reports"
-        />
-        <TabButton 
-          icon={Bell} 
-          label="Notificações" 
-          tabKey="notifications"
-        />
-        <TabButton 
-          icon={User} 
-          label="Perfil" 
-          tabKey="profile"
-        />
       </View>
-    </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -614,7 +596,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   spacer: {
     height: 40,

@@ -6,10 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
+  ActivityIndicator,
+  Image,
+  TouchableWithoutFeedback,
+  Keyboard,
   ScrollView,
 } from "react-native";
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { User, Mail, Lock, Eye, EyeOff, Heart, ArrowLeft, ArrowRight } from "lucide-react-native";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
@@ -616,55 +619,64 @@ export default function RegisterScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      {/* Header com botão voltar */}
-      {currentStep > 1 && (
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handlePrevious} style={styles.backButton}>
-            <ArrowLeft size={24} color="#2563eb" />
-          </TouchableOpacity>
-        </View>
-      )}
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.container}>
+        <KeyboardAwareScrollView
+          contentContainerStyle={styles.scrollContainer}
+          enableOnAndroid={true}
+          extraScrollHeight={30}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Logo */}
+          <View style={styles.logoContainer}>
+            {/* ...existing logo code... */}
+          </View>
 
-      {/* Progress Bar */}
-      {renderProgressBar()}
+          {/* Formulário */}
+          <View style={styles.formContainer}>
+            {/* Progress Bar */}
+            {renderProgressBar()}
 
-      {/* Conteúdo da etapa */}
-      <View style={styles.content}>
-        <View style={styles.scrollContainer}>
-          {renderStepContent()}
-        </View>
+            {/* Conteúdo da etapa */}
+            <View style={styles.content}>
+              <View style={styles.scrollContainer}>
+                {renderStepContent()}
+              </View>
 
-        {/* Botões de navegação */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.nextButton, loading && { opacity: 0.7 }]}
-            onPress={handleNext}
-            disabled={loading}
-          >
-            <Text style={styles.nextButtonText}>
-              {currentStep === totalSteps 
-                ? (loading ? "Cadastrando..." : "Cadastrar")
-                : "Próximo"
-              }
-            </Text>
-            {currentStep < totalSteps && <ArrowRight size={20} color="#fff" style={{ marginLeft: 8 }} />}
-          </TouchableOpacity>
+              {/* Botões de navegação */}
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={[styles.nextButton, loading && { opacity: 0.7 }]}
+                  onPress={handleNext}
+                  disabled={loading}
+                >
+                  <Text style={styles.nextButtonText}>
+                    {currentStep === totalSteps 
+                      ? (loading ? "Cadastrando..." : "Cadastrar")
+                      : "Próximo"
+                    }
+                  </Text>
+                  {currentStep < totalSteps && <ArrowRight size={20} color="#fff" style={{ marginLeft: 8 }} />}
+                </TouchableOpacity>
 
-          {currentStep === 1 && (
-            <TouchableOpacity 
-              style={styles.loginButton}
-              onPress={() => navigation.navigate('Login')}
-            >
-              <Text style={styles.loginButtonText}>Já tem uma conta? <Text style={styles.loginLink}>Fazer Login</Text></Text>
-            </TouchableOpacity>
-          )}
-        </View>
+                {currentStep === 1 && (
+                  <TouchableOpacity 
+                    style={styles.loginButton}
+                    onPress={() => navigation.navigate('Login')}
+                  >
+                    <Text style={styles.loginButtonText}>Já tem uma conta? <Text style={styles.loginLink}>Fazer Login</Text></Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Espaçamento extra */}
+          <View style={{ height: 80 }} />
+        </KeyboardAwareScrollView>
       </View>
-    </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -672,6 +684,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8f9fa",
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
   },
   header: {
     paddingTop: 60,
@@ -717,8 +734,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  scrollContainer: {
+  scrollableStep: {
     flex: 1,
+  },
+  scrollableStepContent: {
     paddingBottom: 20,
   },
   stepContainer: {
@@ -726,13 +745,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "flex-start",
     minHeight: "100%",
-  },
-  // Novos estilos para a etapa 5
-  scrollableStep: {
-    flex: 1,
-  },
-  scrollableStepContent: {
-    paddingBottom: 20,
   },
   stepHeaderContainer: {
     alignItems: "center",
@@ -892,5 +904,27 @@ const styles = StyleSheet.create({
   loginLink: {
     color: "#2563eb",
     fontWeight: "500",
+  },
+  logoContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 40,
+    marginBottom: 40,
+  },
+  formContainer: {
+    flex: 3,
+    width: "100%",
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });

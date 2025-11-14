@@ -6,19 +6,20 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
+  ActivityIndicator,
+  Image,
   Modal,
-  Image, // ADICIONAR
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../../navigation/AppNavigator";
-import { Mail, Lock, Eye, EyeOff, CheckCircle, X } from "lucide-react-native";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../../api/firebase/config";
-import logo from "./logo.png";
+import { Mail, Lock, Eye, EyeOff, CheckCircle, X } from "lucide-react-native";
 
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
@@ -212,180 +213,184 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <View style={styles.content}>
-        {/* Logo e título */}
-        <View style={styles.headerContainer}>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={styles.container}>
+        <KeyboardAwareScrollView
+          contentContainerStyle={styles.scrollContainer}
+          enableOnAndroid={true}
+          extraScrollHeight={20}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Logo e título */}
           <View style={styles.logoContainer}>
-            {/* SUBSTITUIR Heart por Image */}
             <Image
-              source={logo}
-              style={styles.logoImage}
-              resizeMode="contain"
+              source={require("./logo.png")}
+              style={styles.logo}
             />
+            <Text style={styles.title}>GlicoInfo</Text>
+            <Text style={styles.subtitle}>Sistema de Gestão Diabético</Text>
           </View>
-          <Text style={styles.title}>GlicoInfo</Text>
-          <Text style={styles.subtitle}>Sistema de Gestão Diabético</Text>
-        </View>
 
-        {/* Erro geral */}
-        {errors.general ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{errors.general}</Text>
-          </View>
-        ) : null}
-
-        {/* Formulário */}
-        <View style={styles.formContainer}>
-          {/* Campo Email */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>E-mail</Text>
-            <View style={[
-              styles.inputContainer,
-              errors.email ? styles.inputError : null
-            ]}>
-              <Mail size={20} color={errors.email ? "#ef4444" : "#94a3b8"} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="seu@email.com"
-                placeholderTextColor="#94a3b8"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={handleEmailChange}
-                editable={!loading && !resetLoading}
-              />
+          {/* Erro geral */}
+          {errors.general ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{errors.general}</Text>
             </View>
-            {errors.email ? (
-              <Text style={styles.fieldError}>{errors.email}</Text>
-            ) : null}
-          </View>
+          ) : null}
 
-          {/* Campo Senha */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Senha</Text>
-            <View style={[
-              styles.inputContainer,
-              errors.password ? styles.inputError : null
-            ]}>
-              <Lock size={20} color={errors.password ? "#ef4444" : "#94a3b8"} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Digite sua senha"
-                placeholderTextColor="#94a3b8"
-                secureTextEntry={!show}
-                value={senha}
-                onChangeText={handlePasswordChange}
-                editable={!loading && !resetLoading}
-              />
-              <TouchableOpacity 
-                onPress={() => setShow(!show)} 
-                style={styles.eyeButton}
-                disabled={loading || resetLoading}
-              >
-                {show ? (
-                  <EyeOff size={20} color={errors.password ? "#ef4444" : "#94a3b8"} />
-                ) : (
-                  <Eye size={20} color={errors.password ? "#ef4444" : "#94a3b8"} />
-                )}
-              </TouchableOpacity>
-            </View>
-            {errors.password ? (
-              <Text style={styles.fieldError}>{errors.password}</Text>
-            ) : null}
-          </View>
-
-          {/* Link esqueci senha */}
-          <TouchableOpacity 
-            style={styles.forgotPassword}
-            onPress={handleForgotPassword}
-            disabled={loading || resetLoading}
-          >
-            <Text style={styles.forgotPasswordText}>
-              {resetLoading ? "Enviando..." : "Esqueci minha senha"}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Botão Entrar */}
-          <TouchableOpacity
-            style={[styles.loginButton, (loading || resetLoading) && styles.loginButtonDisabled]}
-            onPress={handleLogin}
-            disabled={loading || resetLoading}
-          >
-            <Text style={styles.loginButtonText}>
-              {loading ? "Entrando..." : "Entrar"}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Separador */}
-          <View style={styles.separator}>
-            <Text style={styles.separatorText}>ou</Text>
-          </View>
-
-          {/* Botão Cadastrar */}
-          <TouchableOpacity 
-            style={styles.registerButton} 
-            onPress={handleRegister}
-            disabled={loading || resetLoading}
-          >
-            <Text style={styles.registerButtonText}>Cadastre-se</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Modal de Sucesso Customizado */}
-      <Modal
-        visible={showSuccessModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={closeSuccessModal}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            {/* Header do Modal */}
-            <View style={styles.modalHeader}>
-              <View style={styles.successIconContainer}>
-                <CheckCircle size={24} color="#10b981" />
+          {/* Formulário */}
+          <View style={styles.formContainer}>
+            {/* Campo Email */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>E-mail</Text>
+              <View style={[
+                styles.inputContainer,
+                errors.email ? styles.inputError : null
+              ]}>
+                <Mail size={20} color={errors.email ? "#ef4444" : "#94a3b8"} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="seu@email.com"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={handleEmailChange}
+                  editable={!loading && !resetLoading}
+                />
               </View>
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={closeSuccessModal}
-              >
-                <X size={20} color="#9ca3af" />
-              </TouchableOpacity>
+              {errors.email ? (
+                <Text style={styles.fieldError}>{errors.email}</Text>
+              ) : null}
             </View>
 
-            {/* Conteúdo do Modal */}
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>E-mail enviado</Text>
-              
-              <Text style={styles.modalDescription}>
-                Enviamos um link para redefinir sua senha para:
-              </Text>
-              
-              <View style={styles.emailContainer}>
-                <Text style={styles.emailText}>{resetEmail}</Text>
+            {/* Campo Senha */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Senha</Text>
+              <View style={[
+                styles.inputContainer,
+                errors.password ? styles.inputError : null
+              ]}>
+                <Lock size={20} color={errors.password ? "#ef4444" : "#94a3b8"} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Digite sua senha"
+                  placeholderTextColor="#94a3b8"
+                  secureTextEntry={!show}
+                  value={senha}
+                  onChangeText={handlePasswordChange}
+                  editable={!loading && !resetLoading}
+                />
+                <TouchableOpacity 
+                  onPress={() => setShow(!show)} 
+                  style={styles.eyeButton}
+                  disabled={loading || resetLoading}
+                >
+                  {show ? (
+                    <EyeOff size={20} color={errors.password ? "#ef4444" : "#94a3b8"} />
+                  ) : (
+                    <Eye size={20} color={errors.password ? "#ef4444" : "#94a3b8"} />
+                  )}
+                </TouchableOpacity>
               </View>
-              
-              <Text style={styles.modalInstructions}>
-                Verifique sua caixa de entrada e spam.
-              </Text>
+              {errors.password ? (
+                <Text style={styles.fieldError}>{errors.password}</Text>
+              ) : null}
             </View>
 
-            {/* Botão OK */}
+            {/* Link esqueci senha */}
             <TouchableOpacity 
-              style={styles.modalButton}
-              onPress={closeSuccessModal}
+              style={styles.forgotPassword}
+              onPress={handleForgotPassword}
+              disabled={loading || resetLoading}
             >
-              <Text style={styles.modalButtonText}>OK</Text>
+              <Text style={styles.forgotPasswordText}>
+                {resetLoading ? "Enviando..." : "Esqueci minha senha"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Botão Entrar */}
+            <TouchableOpacity
+              style={[styles.loginButton, (loading || resetLoading) && styles.loginButtonDisabled]}
+              onPress={handleLogin}
+              disabled={loading || resetLoading}
+            >
+              <Text style={styles.loginButtonText}>
+                {loading ? "Entrando..." : "Entrar"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Separador */}
+            <View style={styles.separator}>
+              <Text style={styles.separatorText}>ou</Text>
+            </View>
+
+            {/* Botão Cadastrar */}
+            <TouchableOpacity 
+              style={styles.registerButton} 
+              onPress={handleRegister}
+              disabled={loading || resetLoading}
+            >
+              <Text style={styles.registerButtonText}>Cadastre-se</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
-    </KeyboardAvoidingView>
+
+          {/* Espaçamento extra */}
+          <View style={{ height: 50 }} />
+        </KeyboardAwareScrollView>
+
+        {/* Modal de Sucesso Customizado */}
+        <Modal
+          visible={showSuccessModal}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={closeSuccessModal}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              {/* Header do Modal */}
+              <View style={styles.modalHeader}>
+                <View style={styles.successIconContainer}>
+                  <CheckCircle size={24} color="#10b981" />
+                </View>
+                <TouchableOpacity 
+                  style={styles.closeButton}
+                  onPress={closeSuccessModal}
+                >
+                  <X size={20} color="#9ca3af" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Conteúdo do Modal */}
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>E-mail enviado</Text>
+                
+                <Text style={styles.modalDescription}>
+                  Enviamos um link para redefinir sua senha para:
+                </Text>
+                
+                <View style={styles.emailContainer}>
+                  <Text style={styles.emailText}>{resetEmail}</Text>
+                </View>
+                
+                <Text style={styles.modalInstructions}>
+                  Verifique sua caixa de entrada e spam.
+                </Text>
+              </View>
+
+              {/* Botão OK */}
+              <TouchableOpacity 
+                style={styles.modalButton}
+                onPress={closeSuccessModal}
+              >
+                <Text style={styles.modalButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -394,36 +399,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8f9fa",
   },
-  content: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 32,
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
   },
-  headerContainer: {
+  logoContainer: {
     alignItems: "center",
     marginBottom: 48,
   },
-  logoContainer: {
-    width: 120,  // AUMENTADO de 64
-    height: 120, // AUMENTADO de 64
-    borderRadius: 60,
-    backgroundColor: "transparent", // MUDADO de "#2563eb" para transparent
-    alignItems: "center",
-    justifyContent: "center",
+  logo: {
+    width: 120,
+    height: 120,
     marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  
-  logoImage: {
-    width: 110,  // AUMENTADO de 48
-    height: 110, // AUMENTADO de 48
   },
   title: {
     fontSize: 24,

@@ -6,11 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ScrollView,
   ActivityIndicator,
   Modal,
   FlatList,
+  ScrollView
 } from "react-native";
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { ArrowLeft, Home, FileText, Bell, User, ChevronDown } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { collection, addDoc, getDocs, query } from "firebase/firestore";
@@ -325,85 +326,95 @@ export default function RegisterMedicationScreen() {
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Espaço superior para centralizar */}
-        <View style={styles.spacer} />
-        
-        {/* Medicamento */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.fieldLabel}>Medicamento</Text>
-          <TouchableOpacity
-            style={styles.selectButton}
-            onPress={() => setShowMedicationModal(true)}
-            disabled={loadingMedications}
-          >
-            <Text style={[
-              styles.selectButtonText,
-              !formData.medicationName && styles.selectButtonPlaceholder
-            ]}>
-              {loadingMedications 
-                ? "Carregando medicamentos..." 
-                : formData.medicationName || "Selecione o medicamento"
-              }
-            </Text>
-            <ChevronDown size={20} color="#6b7280" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Dose */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.fieldLabel}>Dose</Text>
-          <TextInput
-            style={styles.input}
-            value={formData.dose}
-            onChangeText={(text) => setFormData({ ...formData, dose: text })}
-            placeholder="Ex: 500mg"
-            placeholderTextColor="#9ca3af"
-          />
-        </View>
-
-        {/* Data e Hora */}
-        <View style={styles.rowContainer}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Data</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.data}
-              onChangeText={handleDateChange}
-              placeholder="dd/mm/aaaa"
-              placeholderTextColor="#9ca3af"
-              keyboardType="numeric"
-              maxLength={10}
-            />
-          </View>
+      <KeyboardAwareScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        enableOnAndroid={true}
+        extraScrollHeight={40}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Formulário */}
+        <View style={styles.formContainer}>
+          {/* Espaço superior para centralizar */}
+          <View style={styles.spacer} />
           
+          {/* Medicamento */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Hora</Text>
+            <Text style={styles.fieldLabel}>Medicamento</Text>
+            <TouchableOpacity
+              style={styles.selectButton}
+              onPress={() => setShowMedicationModal(true)}
+              disabled={loadingMedications}
+            >
+              <Text style={[
+                styles.selectButtonText,
+                !formData.medicationName && styles.selectButtonPlaceholder
+              ]}>
+                {loadingMedications 
+                  ? "Carregando medicamentos..." 
+                  : formData.medicationName || "Selecione o medicamento"
+                }
+              </Text>
+              <ChevronDown size={20} color="#6b7280" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Dose */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>Dose</Text>
             <TextInput
               style={styles.input}
-              value={formData.hora}
-              onChangeText={handleTimeChange}
-              placeholder="hh:mm"
+              value={formData.dose}
+              onChangeText={(text) => setFormData({ ...formData, dose: text })}
+              placeholder="Ex: 500mg"
               placeholderTextColor="#9ca3af"
-              keyboardType="numeric"
-              maxLength={5}
             />
           </View>
-        </View>
 
-        {/* Descrição */}
-        <View style={styles.fieldContainer}>
-          <Text style={styles.fieldLabel}>Descrição</Text>
-          <TextInput
-            style={styles.textArea}
-            value={formData.descricao}
-            onChangeText={(text) => setFormData({ ...formData, descricao: text })}
-            placeholder="Observações (opcional)"
-            placeholderTextColor="#9ca3af"
-            multiline={true}
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
+          {/* Data e Hora */}
+          <View style={styles.rowContainer}>
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Data</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.data}
+                onChangeText={handleDateChange}
+                placeholder="dd/mm/aaaa"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+                maxLength={10}
+              />
+            </View>
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Hora</Text>
+              <TextInput
+                style={styles.input}
+                value={formData.hora}
+                onChangeText={handleTimeChange}
+                placeholder="hh:mm"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+                maxLength={5}
+              />
+            </View>
+          </View>
+
+          {/* Descrição */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.fieldLabel}>Descrição</Text>
+            <TextInput
+              style={styles.textArea}
+              value={formData.descricao}
+              onChangeText={(text) => setFormData({ ...formData, descricao: text })}
+              placeholder="Observações (opcional)"
+              placeholderTextColor="#9ca3af"
+              multiline={true}
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          </View>
         </View>
 
         {/* Botões */}
@@ -429,9 +440,9 @@ export default function RegisterMedicationScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Espaço extra para a navegação inferior */}
-        <View style={{ height: 120 }} />
-      </ScrollView>
+        {/* Espaçamento extra */}
+        <View style={{ height: 100 }} />
+      </KeyboardAwareScrollView>
 
       {/* Modal de Seleção de Medicamento */}
       <Modal
@@ -523,7 +534,13 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingVertical: 20,
+  },
+  formContainer: {
+    flex: 1,
   },
   spacer: {
     height: 60,

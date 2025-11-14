@@ -6,12 +6,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ScrollView,
   ActivityIndicator,
   Modal,
   FlatList,
+  ScrollView,
 } from "react-native";
-import { ArrowLeft, Home, FileText, Bell, User, ChevronDown, Calculator, Plus, Trash2, X } from "lucide-react-native";
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { ArrowLeft, Home, FileText, Bell, User, ChevronDown, Calculator, Plus, Trash2, X, Search } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { collection, addDoc, getDocs, query } from "firebase/firestore";
 import { auth, db } from "../../api/firebase/config";
@@ -42,15 +43,29 @@ interface MealItem {
   portionDesc: string;
 }
 
+// RENOMEAR INTERFACE
+interface SelectedItem {
+  id: string;
+  foodId: string;
+  foodName: string;
+  classification: string;
+  quantity: string;
+  portionDesc: string;
+}
+
 export default function RegisterMealScreen() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(false);
   const [loadingFoods, setLoadingFoods] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
   const [foods, setFoods] = useState<Food[]>([]);
+  const [filteredFoods, setFilteredFoods] = useState<Food[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState("todos");
   const [showFoodModal, setShowFoodModal] = useState(false);
   const [showMealTypeModal, setShowMealTypeModal] = useState(false);
   const [mealItems, setMealItems] = useState<MealItem[]>([]);
+  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]); // RENOMEADO
   
   const [formData, setFormData] = useState({
     mealType: "",
@@ -75,9 +90,23 @@ export default function RegisterMealScreen() {
     { id: "other", name: "Outro", icon: "🍴" },
   ];
 
+  // FILTROS DE CLASSIFICAÇÃO
+  const classificationFilters = [
+    { id: "todos", name: "TODOS" },
+    { id: "g1", name: "G1", color: "#10b981" },
+    { id: "g2", name: "G2", color: "#3b82f6" },
+    { id: "g3", name: "G3", color: "#f59e0b" },
+    { id: "g4", name: "G4", color: "#ef4444" },
+  ];
+
   useEffect(() => {
     loadFoods();
   }, []);
+
+  // NOVO: FILTRAR ALIMENTOS QUANDO MUDAR BUSCA OU FILTRO
+  useEffect(() => {
+    filterFoods();
+  }, [searchQuery, selectedFilter, foods]);
 
   const loadFoods = async () => {
     try {
@@ -100,12 +129,38 @@ export default function RegisterMealScreen() {
       
       foodsList.sort((a, b) => a.name.localeCompare(b.name));
       setFoods(foodsList);
+      setFilteredFoods(foodsList);
     } catch (error) {
       console.log("Erro ao carregar alimentos:", error);
       Alert.alert("Erro", "Não foi possível carregar a lista de alimentos");
     } finally {
       setLoadingFoods(false);
     }
+  };
+
+  // NOVA FUNÇÃO: FILTRAR ALIMENTOS
+  const filterFoods = () => {
+    let filtered = [...foods];
+
+    // Filtrar por busca
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(food =>
+        food.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Filtrar por classificação
+    if (selectedFilter !== "todos") {
+      filtered = filtered.filter(food => food.classification === selectedFilter);
+    }
+
+    setFilteredFoods(filtered);
+  };
+
+  // NOVA FUNÇÃO: LIMPAR FILTROS
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedFilter("todos");
   };
 
   const handleGoBack = () => {
@@ -216,7 +271,89 @@ export default function RegisterMealScreen() {
       foodName: food.name,
       quantity: "1",
     });
-    setShowFoodModal(false);
+  };
+
+  // RENOMEAR FUNÇÃO
+  const addToSelected = () => {
+    if (!tempItem.foodId || !tempItem.quantity.trim()) {
+      Alert.alert("Erro", "Selecione um alimento e informe a quantidade");
+      return;
+    }
+
+    const quantity = parseFloat(tempItem.quantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      Alert.alert("Erro", "Informe uma quantidade válida");
+      return;
+    }
+
+    const selectedFood = foods.find(food => food.id === tempItem.foodId);
+    if (!selectedFood) {
+      Alert.alert("Erro", "Alimento não encontrado");
+      return;
+    }
+
+    const existsInSelected = selectedItems.find(item => item.foodId === tempItem.foodId);
+    if (existsInSelected) {
+      Alert.alert("Aviso", "Este alimento já está selecionado");
+      return;
+    }
+
+    const newSelectedItem: SelectedItem = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      foodId: selectedFood.id,
+      foodName: selectedFood.name,
+      classification: selectedFood.classification,
+      quantity: tempItem.quantity,
+      portionDesc: selectedFood.portionDesc,
+    };
+
+    setSelectedItems([...selectedItems, newSelectedItem]);
+    
+    // Limpar seleção mas NÃO fechar modal
+    setTempItem({
+      foodId: "",
+      foodName: "",
+      quantity: "",
+    });
+  };
+
+  // RENOMEAR FUNÇÃO
+  const removeFromSelected = (itemId: string) => {
+    setSelectedItems(selectedItems.filter(item => item.id !== itemId));
+  };
+
+  // RENOMEAR FUNÇÃO
+  const confirmSelected = () => {
+    if (selectedItems.length === 0) {
+      Alert.alert("Erro", "Nenhum alimento selecionado");
+      return;
+    }
+
+    const newMealItems: MealItem[] = selectedItems.map(selectedItem => {
+      const selectedFood = foods.find(food => food.id === selectedItem.foodId);
+      if (!selectedFood) return null;
+
+      const quantity = parseFloat(selectedItem.quantity);
+      const totalCarbs = selectedFood.carbsPortion * quantity;
+
+      return {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        foodId: selectedFood.id,
+        foodName: selectedFood.name,
+        classification: selectedFood.classification,
+        classificationLabel: getClassificationLabel(selectedFood.classification),
+        quantity: quantity,
+        carbs: parseFloat(totalCarbs.toFixed(1)),
+        portionDesc: selectedFood.portionDesc,
+      };
+    }).filter(item => item !== null) as MealItem[];
+
+    setMealItems([...mealItems, ...newMealItems]);
+    setSelectedItems([]);
+    setShowFoodModal(false); // Fechar modal
+    clearFilters(); // LIMPAR FILTROS AO FECHAR
+    
+    Alert.alert("✅ Sucesso", `${newMealItems.length} alimento(s) adicionado(s) à refeição!`);
   };
 
   const getClassificationLabel = (classification: string) => {
@@ -432,26 +569,69 @@ export default function RegisterMealScreen() {
     </TouchableOpacity>
   );
 
-  const renderFoodItem = ({ item }: { item: Food }) => (
-    <TouchableOpacity
-      style={styles.foodItem}
-      onPress={() => handleFoodSelect(item)}
-    >
-      <View style={styles.foodInfo}>
-        <Text style={styles.foodName}>{item.name}</Text>
-        <Text style={[
-          styles.foodClassification,
-          { color: getClassificationColor(item.classification) }
-        ]}>
-          {getClassificationLabel(item.classification)}
-        </Text>
-        <Text style={styles.foodDetails}>
-          {item.carbsPortion}g de carboidratos por {item.portionDesc}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+  const renderFoodItem = ({ item }: { item: Food }) => {
+    const isInSelected = selectedItems.some(selectedItem => selectedItem.foodId === item.id);
+    const isSelected = tempItem.foodId === item.id;
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.foodItem,
+          isSelected && styles.selectedFoodItem,
+          isInSelected && styles.foodItemInSelected,
+        ]}
+        onPress={() => handleFoodSelect(item)}
+      >
+        <View style={styles.foodInfo}>
+          <View style={styles.foodNameRow}>
+            <Text style={styles.foodName}>{item.name}</Text>
+            {isInSelected && (
+              <View style={styles.inSelectedBadge}>
+                <Text style={styles.inSelectedBadgeText}>Selecionado</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[
+            styles.foodClassification,
+            { color: getClassificationColor(item.classification) }
+          ]}>
+            {getClassificationLabel(item.classification)}
+          </Text>
+          <Text style={styles.foodDetails}>
+            {item.carbsPortion}g de carboidratos por {item.portionDesc}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
+  // RENOMEAR FUNÇÃO
+  const renderSelectedItem = ({ item }: { item: SelectedItem }) => {
+    const food = foods.find(f => f.id === item.foodId);
+    if (!food) return null;
+
+    const quantity = parseFloat(item.quantity);
+    const totalCarbs = food.carbsPortion * quantity;
+
+    return (
+      <View style={styles.selectedItemCard}>
+        <View style={styles.selectedItemInfo}>
+          <Text style={styles.selectedItemName}>{item.foodName}</Text>
+          <Text style={styles.selectedItemDetails}>
+            {item.quantity}x {item.portionDesc} • {totalCarbs.toFixed(1)}g carboidratos
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.removeSelectedButton}
+          onPress={() => removeFromSelected(item.id)}
+        >
+          <X size={18} color="#ef4444" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // ADICIONAR ESTA FUNÇÃO QUE ESTAVA FALTANDO
   const renderMealItem = ({ item }: { item: MealItem }) => (
     <View style={styles.mealItemCard}>
       <View style={styles.mealItemInfo}>
@@ -463,7 +643,7 @@ export default function RegisterMealScreen() {
           {item.classificationLabel}
         </Text>
         <Text style={styles.mealItemDetails}>
-          {item.quantity} {item.portionDesc} • {item.carbs}g de carboidratos
+          {item.quantity}x {item.portionDesc} • {item.carbs}g de carboidratos
         </Text>
       </View>
       <TouchableOpacity
@@ -486,8 +666,15 @@ export default function RegisterMealScreen() {
         <View style={styles.headerRight} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Espaço superior para centralizar */}
+      <KeyboardAwareScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        enableOnAndroid={true}
+        extraScrollHeight={30}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Espaço superior */}
         <View style={styles.spacer} />
         
         {/* Tipo de refeição */}
@@ -509,54 +696,25 @@ export default function RegisterMealScreen() {
 
         {/* Seção para adicionar alimentos */}
         <View style={styles.addFoodSection}>
-          <Text style={styles.sectionTitle}>Adicionar Alimentos</Text>
-          
-          {/* Alimento */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Alimento</Text>
-            <TouchableOpacity
-              style={styles.selectButton}
-              onPress={() => setShowFoodModal(true)}
-              disabled={loadingFoods}
-            >
-              <Text style={[
-                styles.selectButtonText,
-                !tempItem.foodName && styles.selectButtonPlaceholder
-              ]}>
-                {loadingFoods 
-                  ? "Carregando alimentos..." 
-                  : tempItem.foodName || "Selecionar alimento"
-                }
-              </Text>
-              <ChevronDown size={20} color="#6b7280" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Quantidade e Botão Adicionar */}
-          {tempItem.foodId && (
-            <View style={styles.quantityContainer}>
-              <View style={styles.quantityField}>
-                <Text style={styles.fieldLabel}>
-                  Quantidade ({foods.find(f => f.id === tempItem.foodId)?.portionDesc})
-                </Text>
-                <TextInput
-                  style={styles.input}
-                  value={tempItem.quantity}
-                  onChangeText={(text) => setTempItem({...tempItem, quantity: text})}
-                  placeholder="Ex: 1.5"
-                  placeholderTextColor="#9ca3af"
-                  keyboardType="numeric"
-                />
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Adicionar Alimentos</Text>
+            {selectedItems.length > 0 && (
+              <View style={styles.selectedBadge}>
+                <Text style={styles.selectedBadgeText}>{selectedItems.length}</Text>
               </View>
-              
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={addItemToMeal}
-              >
-                <Plus size={20} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          )}
+            )}
+          </View>
+          
+          <TouchableOpacity
+            style={styles.openModalButton}
+            onPress={() => setShowFoodModal(true)}
+            disabled={loadingFoods}
+          >
+            <Text style={styles.openModalButtonText}>
+              {loadingFoods ? "Carregando..." : "Selecionar Alimentos"}
+            </Text>
+            <Plus size={20} color="#2563eb" />
+          </TouchableOpacity>
         </View>
 
         {/* Lista de alimentos adicionados */}
@@ -646,8 +804,9 @@ export default function RegisterMealScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={{ height: 120 }} />
-      </ScrollView>
+        {/* Espaçamento extra */}
+        <View style={{ height: 150 }} />
+      </KeyboardAwareScrollView>
 
       {/* Modal de Seleção de Tipo de Refeição */}
       <Modal
@@ -680,27 +839,153 @@ export default function RegisterMealScreen() {
       <Modal
         visible={showFoodModal}
         animationType="slide"
-        presentationStyle="pageSheet"
+        presentationStyle="fullScreen"
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Selecionar Alimento</Text>
+            <Text style={styles.modalTitle}>
+              Selecionar Alimentos
+              {selectedItems.length > 0 && ` (${selectedItems.length} selecionado${selectedItems.length > 1 ? 's' : ''})`}
+            </Text>
             <TouchableOpacity 
-              onPress={() => setShowFoodModal(false)}
+              onPress={() => {
+                setShowFoodModal(false);
+                setTempItem({ foodId: "", foodName: "", quantity: "" });
+                clearFilters();
+              }}
               style={styles.modalCloseButton}
             >
               <Text style={styles.modalCloseText}>Fechar</Text>
             </TouchableOpacity>
           </View>
+
+          {/* BARRA DE PESQUISA E FILTROS */}
+          <View style={styles.searchSection}>
+            <View style={styles.searchContainer}>
+              <Search size={20} color="#6b7280" />
+              <TextInput
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Buscar alimento..."
+                placeholderTextColor="#9ca3af"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                  <X size={20} color="#6b7280" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.filterContainer}
+              contentContainerStyle={styles.filterContent}
+            >
+              {classificationFilters.map(filter => (
+                <TouchableOpacity
+                  key={filter.id}
+                  style={[
+                    styles.filterChip,
+                    selectedFilter === filter.id && styles.filterChipActive,
+                    selectedFilter === filter.id && filter.color && {
+                      backgroundColor: filter.color,
+                      borderColor: filter.color,
+                    }
+                  ]}
+                  onPress={() => setSelectedFilter(filter.id)}
+                >
+                  <Text style={[
+                    styles.filterChipText,
+                    selectedFilter === filter.id && styles.filterChipTextActive,
+                  ]}>
+                    {filter.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* SELECIONADOS */}
+          {selectedItems.length > 0 && (
+            <View style={styles.selectedSection}>
+              <View style={styles.selectedHeader}>
+                <Text style={styles.selectedTitle}>Selecionados ({selectedItems.length})</Text>
+                <TouchableOpacity
+                  style={styles.confirmSelectedButton}
+                  onPress={confirmSelected}
+                >
+                  <Plus size={16} color="#fff" />
+                  <Text style={styles.confirmSelectedButtonText}>
+                    Adicionar à Refeição
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              
+              <FlatList
+                data={selectedItems}
+                renderItem={renderSelectedItem}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.selectedList}
+                contentContainerStyle={styles.selectedListContent}
+              />
+            </View>
+          )}
+
+          {/* SELEÇÃO ATUAL */}
+          {tempItem.foodId && (
+            <View style={styles.selectionSection}>
+              <Text style={styles.selectionTitle}>Item Atual</Text>
+              <View style={styles.selectionCard}>
+                <View style={styles.selectionInfo}>
+                  <Text style={styles.selectionName}>{tempItem.foodName}</Text>
+                  <TextInput
+                    style={styles.selectionQuantityInput}
+                    value={tempItem.quantity}
+                    onChangeText={(text) => setTempItem({...tempItem, quantity: text})}
+                    placeholder="Quantidade"
+                    placeholderTextColor="#9ca3af"
+                    keyboardType="numeric"
+                  />
+                </View>
+                <TouchableOpacity
+                  style={styles.addToSelectedButton}
+                  onPress={addToSelected}
+                >
+                  <Plus size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           
+          {/* LISTA DE ALIMENTOS */}
           {loadingFoods ? (
             <View style={styles.modalLoading}>
               <ActivityIndicator size="large" color="#2563eb" />
               <Text style={styles.loadingText}>Carregando alimentos...</Text>
             </View>
+          ) : filteredFoods.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                {searchQuery || selectedFilter !== "todos" 
+                  ? "Nenhum alimento encontrado"
+                  : "Nenhum alimento disponível"}
+              </Text>
+              {(searchQuery || selectedFilter !== "todos") && (
+                <TouchableOpacity 
+                  style={styles.clearFiltersButton}
+                  onPress={clearFilters}
+                >
+                  <Text style={styles.clearFiltersButtonText}>Limpar filtros</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ) : (
             <FlatList
-              data={foods}
+              data={filteredFoods}
               renderItem={renderFoodItem}
               keyExtractor={(item) => item.id}
               style={styles.modalList}
@@ -766,7 +1051,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   spacer: {
     height: 20,
@@ -853,33 +1141,43 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
     color: "#1f2937",
-    marginBottom: 16,
   },
-  quantityContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 12,
-  },
-  quantityField: {
-    flex: 1,
-  },
-  addButton: {
-    backgroundColor: "#10b981",
+  selectedBadge: {
+    backgroundColor: "#2563eb",
     borderRadius: 12,
-    width: 48,
-    height: 48,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 8,
+  },
+  selectedBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  openModalButton: {
+    backgroundColor: "#eff6ff",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "#2563eb",
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#10b981",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-    marginBottom: 24, // Para alinhar com o campo de texto
+  },
+  openModalButtonText: {
+    fontSize: 16,
+    color: "#2563eb",
+    fontWeight: "500",
   },
   mealItemsSection: {
     backgroundColor: "#fff",
@@ -893,30 +1191,30 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   totalCarbsContainer: {
-    backgroundColor: "#dbeafe",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    backgroundColor: "#f0f9ff",
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 16,
-    alignSelf: "flex-start",
+    borderLeftWidth: 4,
+    borderLeftColor: "#2563eb",
   },
   totalCarbsText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "600",
     color: "#2563eb",
   },
   mealItemsList: {
-    marginTop: 0,
+    marginTop: 8,
   },
   mealItemCard: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#f9fafb",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: "#f3f4f6",
+    borderColor: "#e5e7eb",
   },
   mealItemInfo: {
     flex: 1,
@@ -928,12 +1226,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   mealItemClassification: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "500",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   mealItemDetails: {
-    fontSize: 12,
+    fontSize: 14,
     color: "#6b7280",
   },
   removeButton: {
@@ -942,8 +1240,8 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: "row",
-    gap: 16,
-    marginTop: 32,
+    gap: 12,
+    marginBottom: 24,
   },
   cancelButton: {
     flex: 1,
@@ -956,7 +1254,7 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#374151",
+    color: "#6b7280",
   },
   registerButton: {
     flex: 1,
@@ -979,6 +1277,34 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#fff",
   },
+  bottomNavigation: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    position: "relative",
+  },
+  activeTabIndicator: {
+    position: "absolute",
+    bottom: 0,
+    width: 32,
+    height: 3,
+    backgroundColor: "#2563eb",
+    borderRadius: 2,
+  },
   modalContainer: {
     flex: 1,
     backgroundColor: "#fff",
@@ -996,6 +1322,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#1f2937",
+    flex: 1,
   },
   modalCloseButton: {
     padding: 8,
@@ -1005,18 +1332,80 @@ const styles = StyleSheet.create({
     color: "#2563eb",
     fontWeight: "500",
   },
-  modalLoading: {
+  
+  // NOVOS ESTILOS PARA BUSCA E FILTRO
+  searchSection: {
+    backgroundColor: "#f9fafb",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    paddingVertical: 12,
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#1f2937",
+    marginLeft: 8,
+  },
+  filterContainer: {
+    paddingLeft: 20,
+  },
+  filterContent: {
+    paddingRight: 20,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  filterChipActive: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#6b7280",
+  },
+  filterChipTextActive: {
+    color: "#fff",
+  },
+  emptyState: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingVertical: 60,
   },
-  loadingText: {
-    marginTop: 16,
+  emptyStateText: {
     fontSize: 16,
     color: "#6b7280",
+    marginBottom: 16,
   },
-  modalList: {
-    flex: 1,
+  clearFiltersButton: {
+    backgroundColor: "#2563eb",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  clearFiltersButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "500",
   },
   listItem: {
     flexDirection: "row",
@@ -1027,13 +1416,13 @@ const styles = StyleSheet.create({
     borderBottomColor: "#f3f4f6",
   },
   listItemIcon: {
-    fontSize: 20,
+    fontSize: 24,
     marginRight: 12,
   },
   listItemText: {
     fontSize: 16,
     color: "#1f2937",
-    flex: 1,
+    fontWeight: "500",
   },
   foodItem: {
     paddingHorizontal: 20,
@@ -1041,48 +1430,259 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f3f4f6",
   },
+  selectedFoodItem: {
+    backgroundColor: "#eff6ff",
+    borderLeftWidth: 4,
+    borderLeftColor: "#2563eb",
+  },
+  foodItemInCart: {
+    opacity: 0.6,
+  },
   foodInfo: {
     flex: 1,
+  },
+  foodNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
   },
   foodName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1f2937",
-    marginBottom: 4,
+  },
+  inCartBadge: {
+    backgroundColor: "#10b981",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  inCartBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "600",
   },
   foodClassification: {
-    fontSize: 14,
-    marginBottom: 2,
+    fontSize: 12,
     fontWeight: "500",
+    marginBottom: 4,
   },
   foodDetails: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  cartSection: {
+    backgroundColor: "#f9fafb",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    paddingVertical: 12,
+  },
+  cartHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  cartTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  confirmCartButton: {
+    backgroundColor: "#10b981",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  confirmCartButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  cartList: {
+    paddingLeft: 20,
+  },
+  cartListContent: {
+    paddingRight: 20,
+  },
+  cartItemCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    minWidth: 200,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  cartItemInfo: {
+    flex: 1,
+  },
+  cartItemName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 4,
+  },
+  cartItemDetails: {
     fontSize: 12,
     color: "#6b7280",
   },
-  bottomNavigation: {
+  removeCartButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  selectionSection: {
+    backgroundColor: "#eff6ff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#2563eb",
+    padding: 16,
+  },
+  selectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#2563eb",
+    marginBottom: 8,
+  },
+  selectionCard: {
     flexDirection: "row",
-    backgroundColor: "#fff",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  tabButton: {
-    flex: 1,
     alignItems: "center",
-    paddingVertical: 8,
-    position: "relative",
+    gap: 12,
   },
-  activeTabIndicator: {
-    position: "absolute",
-    bottom: -12,
-    height: 3,
-    width: 24,
+  selectionInfo: {
+    flex: 1,
+  },
+  selectionName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 8,
+  },
+  selectionQuantityInput: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: "#1f2937",
+    borderWidth: 1,
+    borderColor: "#2563eb",
+  },
+  addToCartButton: {
     backgroundColor: "#2563eb",
-    borderRadius: 2,
+    borderRadius: 8,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalLoading: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#6b7280",
+  },
+  modalList: {
+    flex: 1,
+  },
+  foodItemInSelected: {
+    opacity: 0.6,
+  },
+  inSelectedBadge: {
+    backgroundColor: "#10b981",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  inSelectedBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  selectedSection: {
+    backgroundColor: "#f9fafb",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    paddingVertical: 12,
+  },
+  selectedHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  selectedTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  confirmSelectedButton: {
+    backgroundColor: "#10b981",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  confirmSelectedButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  selectedList: {
+    paddingLeft: 20,
+  },
+  selectedListContent: {
+    paddingRight: 20,
+  },
+  selectedItemCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    minWidth: 200,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  selectedItemInfo: {
+    flex: 1,
+  },
+  selectedItemName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 4,
+  },
+  selectedItemDetails: {
+    fontSize: 12,
+    color: "#6b7280",
+  },
+  removeSelectedButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  addToSelectedButton: {
+    backgroundColor: "#2563eb",
+    borderRadius: 8,
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
