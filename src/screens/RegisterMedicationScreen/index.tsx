@@ -12,7 +12,7 @@ import {
   ScrollView
 } from "react-native";
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { ArrowLeft, Home, FileText, Bell, User, ChevronDown } from "lucide-react-native";
+import { ArrowLeft, Home, FileText, Bell, User, ChevronDown, Search, X } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { collection, addDoc, getDocs, query } from "firebase/firestore";
 import { auth, db } from "../../api/firebase/config";
@@ -33,6 +33,8 @@ export default function RegisterMedicationScreen() {
   const [loadingMedications, setLoadingMedications] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
   const [medications, setMedications] = useState<Medication[]>([]);
+  const [filteredMedications, setFilteredMedications] = useState<Medication[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showMedicationModal, setShowMedicationModal] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -47,6 +49,11 @@ export default function RegisterMedicationScreen() {
   useEffect(() => {
     loadMedications();
   }, []);
+
+  // NOVO: Filtrar medicamentos quando mudar a busca
+  useEffect(() => {
+    filterMedications();
+  }, [searchQuery, medications]);
 
   const loadMedications = async () => {
     try {
@@ -68,7 +75,9 @@ export default function RegisterMedicationScreen() {
         });
       });
       
+      medicationsList.sort((a, b) => a.commercialName.localeCompare(b.commercialName));
       setMedications(medicationsList);
+      setFilteredMedications(medicationsList);
     } catch (error) {
       console.log("Erro ao carregar medicações:", error);
       Alert.alert("Erro", "Não foi possível carregar a lista de medicamentos");
@@ -77,11 +86,30 @@ export default function RegisterMedicationScreen() {
     }
   };
 
+  // NOVA FUNÇÃO: Filtrar medicamentos
+  const filterMedications = () => {
+    let filtered = [...medications];
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(med =>
+        med.commercialName.toLowerCase().includes(query) ||
+        med.genericName.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredMedications(filtered);
+  };
+
+  // NOVA FUNÇÃO: Limpar pesquisa
+  const clearSearch = () => {
+    setSearchQuery("");
+  };
+
   const handleGoBack = () => {
     navigation.goBack();
   };
 
-  // Formatador para data (DD/MM/AAAA)
   const formatDate = (text: string) => {
     const numbers = text.replace(/\D/g, '');
     
@@ -96,7 +124,6 @@ export default function RegisterMedicationScreen() {
     return text;
   };
 
-  // Formatador para hora (HH:MM)
   const formatTime = (text: string) => {
     const numbers = text.replace(/\D/g, '');
     
@@ -124,7 +151,6 @@ export default function RegisterMedicationScreen() {
     return text;
   };
 
-  // Validar data no formato DD/MM/AAAA
   const validateDate = (dateString: string) => {
     const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
     const match = dateString.match(regex);
@@ -145,7 +171,6 @@ export default function RegisterMedicationScreen() {
            date.getFullYear() === year;
   };
 
-  // Validar hora no formato HH:MM
   const validateTime = (timeString: string) => {
     const regex = /^(\d{1,2}):(\d{1,2})$/;
     const match = timeString.match(regex);
@@ -180,6 +205,7 @@ export default function RegisterMedicationScreen() {
       medicationName: medication.commercialName,
     });
     setShowMedicationModal(false);
+    clearSearch(); // Limpar pesquisa ao fechar
   };
 
   const validateForm = () => {
@@ -203,13 +229,11 @@ export default function RegisterMedicationScreen() {
       return false;
     }
 
-    // Validar formato da data
     if (!validateDate(formData.data)) {
       Alert.alert("Erro", "Por favor, informe uma data válida no formato DD/MM/AAAA");
       return false;
     }
 
-    // Validar formato da hora
     if (!validateTime(formData.hora)) {
       Alert.alert("Erro", "Por favor, informe uma hora válida no formato HH:MM");
       return false;
@@ -229,10 +253,8 @@ export default function RegisterMedicationScreen() {
         return;
       }
 
-      // Encontrar o medicamento selecionado
       const selectedMedication = medications.find(med => med.id === formData.medicationId);
 
-      // Criar documento de medicação
       const medicationData = {
         userId: auth.currentUser.uid,
         medicationId: formData.medicationId,
@@ -248,10 +270,8 @@ export default function RegisterMedicationScreen() {
         timestamp: Date.now(),
       };
 
-      // Salvar no Firebase na coleção "medicationRecords"
       await addDoc(collection(db, "medicationRecords"), medicationData);
 
-      // Mostrar sucesso e voltar
       Alert.alert(
         "✅ Sucesso",
         "Medicação registrada com sucesso!",
@@ -334,9 +354,7 @@ export default function RegisterMedicationScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Formulário */}
         <View style={styles.formContainer}>
-          {/* Espaço superior para centralizar */}
           <View style={styles.spacer} />
           
           {/* Medicamento */}
@@ -440,7 +458,6 @@ export default function RegisterMedicationScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Espaçamento extra */}
         <View style={{ height: 100 }} />
       </KeyboardAwareScrollView>
 
@@ -448,17 +465,39 @@ export default function RegisterMedicationScreen() {
       <Modal
         visible={showMedicationModal}
         animationType="slide"
-        presentationStyle="pageSheet"
+        presentationStyle="fullScreen"
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Selecionar Medicamento</Text>
             <TouchableOpacity 
-              onPress={() => setShowMedicationModal(false)}
+              onPress={() => {
+                setShowMedicationModal(false);
+                clearSearch();
+              }}
               style={styles.modalCloseButton}
             >
               <Text style={styles.modalCloseText}>Fechar</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* BARRA DE PESQUISA */}
+          <View style={styles.searchSection}>
+            <View style={styles.searchContainer}>
+              <Search size={20} color="#6b7280" />
+              <TextInput
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Buscar medicamento..."
+                placeholderTextColor="#9ca3af"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={clearSearch}>
+                  <X size={20} color="#6b7280" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
           
           {loadingMedications ? (
@@ -466,9 +505,25 @@ export default function RegisterMedicationScreen() {
               <ActivityIndicator size="large" color="#2563eb" />
               <Text style={styles.loadingText}>Carregando medicamentos...</Text>
             </View>
+          ) : filteredMedications.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                {searchQuery 
+                  ? "Nenhum medicamento encontrado"
+                  : "Nenhum medicamento disponível"}
+              </Text>
+              {searchQuery && (
+                <TouchableOpacity 
+                  style={styles.clearSearchButton}
+                  onPress={clearSearch}
+                >
+                  <Text style={styles.clearSearchButtonText}>Limpar pesquisa</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           ) : (
             <FlatList
-              data={medications}
+              data={filteredMedications}
               renderItem={renderMedicationItem}
               keyExtractor={(item) => item.id}
               style={styles.medicationList}
@@ -672,6 +727,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#1f2937",
+    flex: 1,
   },
   modalCloseButton: {
     padding: 8,
@@ -679,6 +735,51 @@ const styles = StyleSheet.create({
   modalCloseText: {
     fontSize: 16,
     color: "#2563eb",
+    fontWeight: "500",
+  },
+  searchSection: {
+    backgroundColor: "#f9fafb",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    paddingVertical: 12,
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 20,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: "#1f2937",
+    marginLeft: 8,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 60,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: "#6b7280",
+    marginBottom: 16,
+  },
+  clearSearchButton: {
+    backgroundColor: "#2563eb",
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  clearSearchButtonText: {
+    color: "#fff",
+    fontSize: 14,
     fontWeight: "500",
   },
   modalLoading: {
